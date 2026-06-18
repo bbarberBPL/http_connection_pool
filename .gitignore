@@ -1,0 +1,9 @@
+/.git/
+/.bundle/
+/.claude/
+/pkg/
+*.gem
+*.key
+.env
+.ruby-version
+Gemfile.lock

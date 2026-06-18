@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'bundler/setup'
+require 'http_connection_pool'
+
+# A scratch space for poking at the connection pool interactively.
+#
+#   $ bin/console
+#   >> pool = HttpConnectionPool::Registry.instance.pool_for('https://httpbin.org')
+#   >> pool.with { |conn| conn.get('/get').status }
+#   >> pool.stats
+#
+# `EXAMPLE` is a ready-made Connectable client so you can experiment without
+# wiring one up by hand:
+#
+#   >> EXAMPLE.with_connection { |conn| conn.get('/get').parse }
+#   >> EXAMPLE.connection_pool_stats
+
+class ExampleClient
+  include HttpConnectionPool::Connectable
+
+  self.base_url     = 'https://httpbin.org'
+  self.pool_size    = 5
+  self.pool_timeout = 5.0
+end
+
+EXAMPLE = ExampleClient.new
+
+# Prefer pry if it's available, otherwise fall back to IRB.
+begin
+  require 'pry'
+  Pry.start
+rescue LoadError
+  require 'irb'
+  IRB.start(__FILE__)
+end

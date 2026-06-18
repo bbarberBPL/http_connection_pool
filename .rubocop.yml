@@ -1,0 +1,41 @@
+plugins:
+  - rubocop-rake
+  - rubocop-rspec
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.3
+  Exclude:
+    - "*.gemspec"
+
+# ── Style ──────────────────────────────────────────────────────────────────
+Style/FrozenStringLiteralComment:
+  Enabled: true
+  EnforcedStyle: always
+
+Style/Documentation:
+  Enabled: false
+
+# ── Metrics ────────────────────────────────────────────────────────────────
+Metrics/MethodLength:
+  Max: 20
+
+Metrics/ClassLength:
+  Max: 150
+
+Metrics/BlockLength:
+  Exclude:
+    - "spec/**/*"
+
+# ── RSpec ──────────────────────────────────────────────────────────────────
+RSpec/MultipleExpectations:
+  Max: 3
+
+RSpec/ExampleLength:
+  Max: 20
+
+# Integration specs describe cross-cutting behaviour (e.g. Rails coexistence)
+# rather than a single class, so a string description is appropriate there.
+RSpec/DescribeClass:
+  Exclude:
+    - "spec/integration/**/*"
