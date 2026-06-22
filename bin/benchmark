@@ -1,0 +1,96 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+
+require 'benchmark'
+require 'async'
+require 'async/barrier'
+require 'concurrent/promises'
+require 'http_connection_pool'
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+REQUESTS = 20
+ENDPOINT = '/offices/TOP'
+DIVIDER  = ('-' * 60).freeze
+
+# ── Client ───────────────────────────────────────────────────────────────────
+
+class WeatherClient
+  include HttpConnectionPool::Connectable
+
+  self.base_url  = 'https://api.weather.gov'
+  self.pool_size = 10
+
+  # ── Output helpers ──────────────────────────────────────────────────────────
+
+  def self.print_header
+    puts DIVIDER
+    puts "HttpConnectionPool benchmark — #{REQUESTS} requests to #{ENDPOINT}"
+    puts "  base_url: #{base_url}"
+    puts "  pool_size: #{pool_size}"
+    puts DIVIDER
+  end
+
+  def self.print_stats(label, elapsed)
+    rps = (REQUESTS / elapsed).round(1)
+    puts format('  %-32<label>s %6.2<elapsed>f  (%<rps>s req/s)', label: label, elapsed: elapsed, rps: rps)
+  end
+
+  def self.print_pool_stats
+    stats = connection_pool.stats
+    puts format(
+      '  pool: size=%<size>-3d checked_out=%<checked_out>-3d idle=%<idle>-3d closed=%<closed>s',
+      stats
+    )
+  end
+
+  # ── Scenarios ───────────────────────────────────────────────────────────────
+
+  def self.run_sequential
+    REQUESTS.times { with_connection { |c| c.get(ENDPOINT) } }
+  end
+
+  def self.run_threaded
+    threads = Array.new(REQUESTS) { Thread.new { with_connection { |c| c.get(ENDPOINT) } } }
+    threads.each(&:join)
+  end
+
+  def self.run_futures
+    fs = Array.new(REQUESTS) { Concurrent::Promises.future { with_connection { |c| c.get(ENDPOINT) } } }
+    Concurrent::Promises.zip(*fs).value!
+  end
+
+  def self.run_async_fibers
+    Async do
+      barrier = Async::Barrier.new
+      REQUESTS.times { barrier.async { with_connection { |c| c.get(ENDPOINT) } } }
+      barrier.wait
+    end
+  end
+end
+
+# ── Runner ────────────────────────────────────────────────────────────────────
+
+WeatherClient.print_header
+
+scenarios = {
+  'Sequential (baseline)' => -> { WeatherClient.run_sequential },
+  'Threaded (Thread.new x N)' => -> { WeatherClient.run_threaded },
+  'Concurrent::Promises futures' => -> { WeatherClient.run_futures },
+  'Async fibers (Async::Barrier)' => -> { WeatherClient.run_async_fibers }
+}
+
+scenarios.each do |label, runner|
+  WeatherClient.release_connection_pool
+
+  elapsed = Benchmark.realtime { runner.call }
+  WeatherClient.print_stats(label, elapsed)
+  WeatherClient.print_pool_stats
+  puts
+end
+
+WeatherClient.release_connection_pool
+puts DIVIDER
+puts 'Done.'
