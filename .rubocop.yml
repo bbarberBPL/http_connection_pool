@@ -35,8 +35,9 @@ RSpec/MultipleExpectations:
 RSpec/ExampleLength:
   Max: 20
 
-# Integration specs describe cross-cutting behaviour (e.g. Rails coexistence)
+# Integration specs and the thread-safety suite describe cross-cutting behaviour
 # rather than a single class, so a string description is appropriate there.
 RSpec/DescribeClass:
   Exclude:
     - "spec/integration/**/*"
+    - "spec/http_connection_pool/thread_safety_spec.rb"
