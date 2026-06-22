@@ -21,3 +21,6 @@ them.
 - [`dependency-audit`](dependency-audit/SKILL.md) — security sweep of the
   dependency tree that verifies every advisory/version claim against primary
   sources (RubyGems API, GitHub advisory DB) before recommending a change.
+- [`memory-leak-audit`](memory-leak-audit/SKILL.md) — probes for unbounded
+  retention in `Registry`/`Pool` by driving churn and measuring with
+  `ObjectSpace`/`GC`, rather than reading the code.

@@ -189,6 +189,40 @@ RSpec.describe HttpConnectionPool::Registry do
 
       expect { capped.pool_for('https://b.example.com') }.not_to raise_error
     end
+
+    it 'does not count a directly-closed pool against the cap' do
+      capped = described_class.new(max_pools: 1)
+      pool = capped.pool_for('https://a.example.com')
+      pool.close # closed out-of-band, NOT via registry.release
+
+      expect { capped.pool_for('https://b.example.com') }.not_to raise_error
+    end
+  end
+
+  describe '#sweep_closed!' do
+    it 'removes pools that were closed out-of-band and returns the count' do
+      registry.pool_for('https://a.example.com')
+      pool = registry.pool_for('https://b.example.com')
+      pool.close
+
+      swept = registry.sweep_closed!
+
+      expect(swept).to eq(1)
+      expect(registry.stats.size).to eq(1)
+    end
+
+    it 'leaves open pools untouched' do
+      open_pool = registry.pool_for('https://a.example.com')
+      registry.sweep_closed!
+
+      expect(open_pool).not_to be_closed
+      expect(registry.stats.size).to eq(1)
+    end
+
+    it 'returns 0 when there is nothing to sweep' do
+      registry.pool_for('https://a.example.com')
+      expect(registry.sweep_closed!).to eq(0)
+    end
   end
 
   describe 'pool_key stability (hash key ordering)' do

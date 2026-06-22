@@ -24,3 +24,6 @@ context.
 - [`concurrency-spec-reviewer`](concurrency-spec-reviewer.md) — reviews the
   `:thread_safety` / `:fiber` specs for assertions that races can invalidate,
   then runs stress loops to surface flakiness with evidence.
+- [`memory-leak-auditor`](memory-leak-auditor.md) — hunts unbounded object/
+  resource retention in `Registry`/`Pool`, proving leaks empirically with
+  `ObjectSpace`/`GC` churn probes. Advisory only.

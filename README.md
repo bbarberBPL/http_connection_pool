@@ -258,6 +258,19 @@ GithubClient.release_connection_pool          # close one class's pool
 HttpConnectionPool::Registry.instance.close_all  # close every pool
 ```
 
+Prefer `release_connection_pool` / `Registry#release` / `close_all`, which both
+close the pool **and** remove it from the registry. Calling `Pool#close`
+directly on a pool you obtained from the registry closes its connections but
+leaves the dead entry in the registry until its exact key is requested again —
+the entry keeps its slot under [`max_pools`](#bounding-the-number-of-pools)
+until then. A long-running process that closes pools out-of-band can reclaim
+them all at once:
+
+```ruby
+HttpConnectionPool::Registry.instance.sweep_closed!  # evict closed pools, returns count
+```
+
+
 ### Forking app servers (Puma, Unicorn, Spring, Resque, Sidekiq)
 
 Clustered Puma, Unicorn, and other preforking servers boot the app **once in a

@@ -123,6 +123,20 @@ module HttpConnectionPool
       end
     end
 
+    # Evict every pool that has already been closed out-of-band (e.g. via
+    # Pool#close rather than Registry#release). Dead pools are otherwise only
+    # reclaimed when their exact key is requested again, so a long-running
+    # process that closes pools directly should call this periodically to free
+    # the retained Pool objects (and their option material) and the cap slots
+    # they would otherwise hold. Returns the number of pools swept.
+    def sweep_closed!
+      swept = 0
+      @pools.each_pair do |key, pool|
+        swept += 1 if pool.closed? && @pools.delete_pair(key, pool)
+      end
+      swept
+    end
+
     # @return [Array<Hash>] snapshot of stats for every registered pool
     def stats
       result = []
@@ -191,13 +205,24 @@ module HttpConnectionPool
     # lock-free Concurrent::Map). Under heavy concurrency the count may briefly
     # overshoot by roughly the number of distinct keys racing to be created,
     # but growth stays bounded — which is the point of the DoS backstop.
+    #
+    # Only *live* pools count toward the cap: a pool closed out-of-band (via
+    # Pool#close) is dead weight, not an active connection set, so it must not
+    # block creation of a new pool. It will be evicted lazily when its key is
+    # re-requested, or eagerly via sweep_closed!.
     def ensure_within_limit!(key)
       return unless @max_pools
-      return if @pools.key?(key) || @pools.size < @max_pools
+      return if @pools.key?(key) || live_pool_count < @max_pools
 
       raise PoolLimitError,
             "connection pool limit of #{@max_pools} reached. " \
             'Release unused pools or raise max_pools.'
+    end
+
+    def live_pool_count
+      count = 0
+      @pools.each_value { |pool| count += 1 unless pool.closed? }
+      count
     end
 
     # Normalise a full URL down to its origin (scheme + host + port).
