@@ -88,7 +88,7 @@ dependencies.
 ## RuboCop
 
 - Run `bundle exec rubocop -a` to auto-fix correctable offenses (e.g.
-  `Layout/ArgumentAlignment` on multi-line method calls in specs).
+  `Performance/TimesMap`: `n.times.map` → `Array.new(n)`).
 - Config lives in `.rubocop.yml`. Never skip a RuboCop check with an inline
   `# rubocop:disable` comment unless there is no other option — extract a
   method or restructure instead.
