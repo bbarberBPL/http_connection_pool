@@ -35,9 +35,10 @@ RSpec/MultipleExpectations:
 RSpec/ExampleLength:
   Max: 20
 
-# Integration specs and the thread-safety suite describe cross-cutting behaviour
-# rather than a single class, so a string description is appropriate there.
+# Integration specs and the thread-safety and fiber suites describe cross-cutting
+# behaviour rather than a single class, so a string description is appropriate there.
 RSpec/DescribeClass:
   Exclude:
     - "spec/integration/**/*"
     - "spec/http_connection_pool/thread_safety_spec.rb"
+    - "spec/http_connection_pool/fiber_spec.rb"

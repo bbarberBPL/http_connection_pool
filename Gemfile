@@ -26,6 +26,7 @@ end
 # asserted directly in spec/integration/rails_compatibility_spec.rb.
 group :test do
   gem 'activesupport', '~> 7.2.3'
+  gem 'async',         '~> 2.0'
 
   # Zeitwerk is verified at test time only. The gem loads itself with plain
   # require_relative (so it is invisible to a host Rails app's loader and never
