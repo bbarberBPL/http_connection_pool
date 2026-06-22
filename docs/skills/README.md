@@ -16,4 +16,8 @@ them.
   todos.
 - Reference supporting files by relative path within the skill directory.
 
-No skills are defined yet.
+## Defined skills
+
+- [`dependency-audit`](dependency-audit/SKILL.md) — security sweep of the
+  dependency tree that verifies every advisory/version claim against primary
+  sources (RubyGems API, GitHub advisory DB) before recommending a change.

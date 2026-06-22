@@ -27,6 +27,11 @@ dependencies.
 - New concurrent-ruby primitives must be required individually
   (`concurrent/atomic/atomic_boolean`, not `concurrent-ruby`) to keep load time
   and memory footprint minimal.
+- **MRI (CRuby) only.** http.rb requires `llhttp`, which publishes only a
+  native C-extension build (no JRuby/TruffleRuby variant), so the gem cannot run
+  on non-MRI engines. This is relied upon: the `max_pools` soft-cap spec asserts
+  an exact rejection count because MRI's GVL serialises the check-and-insert. Do
+  not add JRuby to any matrix or weaken that test.
 
 ### 2. Security
 - **Credential isolation** — pools are keyed by SHA-256 digest of
@@ -44,6 +49,12 @@ dependencies.
   must never include option values or digest keys.
 - **bundler-audit** runs offline in the default `ci` task. A network-refreshing
   `rake audit` task also exists. Never remove the audit step from CI.
+- **Before bumping any dependency floor for a CVE/advisory, verify against
+  primary sources** — `curl https://rubygems.org/api/v1/versions/<gem>.json`
+  (is the patched version actually published?) and the GitHub advisory DB (does
+  the GHSA/CVE resolve?). A changelog on `main` can list unreleased versions; an
+  AI summary can fabricate advisory IDs. Pinning a floor to an unpublished
+  version makes the gem uninstallable.
 - `pool_key` must use `normalize_options` (deep-sort all hash keys by `to_s`)
   before hashing so that logically identical options in different key-insertion
   order always resolve to the same pool.

@@ -16,4 +16,11 @@ context.
   context).
 - Describe the report format it must return.
 
-No agents are defined yet.
+## Defined agents
+
+- [`dependency-security-auditor`](dependency-security-auditor.md) — audits the
+  dependency tree for advisories/patches, verifying every claim against primary
+  sources (RubyGems API, GitHub advisory DB). Advisory only; never edits files.
+- [`concurrency-spec-reviewer`](concurrency-spec-reviewer.md) — reviews the
+  `:thread_safety` / `:fiber` specs for assertions that races can invalidate,
+  then runs stress loops to surface flakiness with evidence.
