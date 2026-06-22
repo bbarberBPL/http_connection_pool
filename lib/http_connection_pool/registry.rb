@@ -157,7 +157,9 @@ module HttpConnectionPool
     # of key-insertion order.  Arrays and scalar values are passed through as-is.
     def normalize_options(obj)
       case obj
-      when Hash  then obj.sort_by { |k, _| k.to_s }.to_h { |k, v| [k, normalize_options(v)] }
+      when Hash
+        obj.each_with_object({}) { |(k, v), h| h[k] = normalize_options(v) }
+           .sort_by { |k, _| k.to_s }.to_h
       when Array then obj.map { |v| normalize_options(v) }
       else obj
       end

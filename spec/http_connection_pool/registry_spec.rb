@@ -245,7 +245,7 @@ RSpec.describe HttpConnectionPool::Registry do
       go      = false
       pools   = Array.new(20)
 
-      threads = 20.times.map do |i|
+      threads = Array.new(20) do |i|
         Thread.new do
           barrier.synchronize { start.wait(barrier) until go }
           pools[i] = registry.pool_for('https://concurrent.example.com')

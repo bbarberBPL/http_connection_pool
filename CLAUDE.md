@@ -87,10 +87,13 @@ dependencies.
 
 ## RuboCop
 
+- Run `bundle exec rubocop -a` to auto-fix correctable offenses (e.g.
+  `Layout/ArgumentAlignment` on multi-line method calls in specs).
 - Config lives in `.rubocop.yml`. Never skip a RuboCop check with an inline
   `# rubocop:disable` comment unless there is no other option — extract a
   method or restructure instead.
 - Plugins declared with `plugins:` syntax (not `require:`):
+  - `rubocop-performance`
   - `rubocop-rake`
   - `rubocop-rspec`
 - `RSpec/DescribeClass` is excluded for `spec/integration/**/*` because those
@@ -102,6 +105,11 @@ dependencies.
 
 ## RSpec
 
+- **Never use apostrophes in `it`/`describe`/`context` description strings** —
+  `it 'uses parent's value'` is a Ruby `SyntaxError`. Use double quotes or
+  rephrase: `it 'uses the parent class value'`.
+- `spec_helper.rb` sets `mocks.verify_partial_doubles = true` — stubs on real
+  objects (not doubles) are also verified against the actual method signature.
 - Tests use `instance_double(HTTP::Client)` for the fake client.
 - Every `before` block that creates a fake HTTP::Client must stub both
   `is_a?` and `kind_of?` for `HTTP::Client` — RSpec's `be_a` matcher uses
@@ -170,6 +178,10 @@ are **development/test only** — never add them to `spec.add_dependency`.
 ---
 
 ## Error Classes
+
+`Registry#stats` returns `Array<Hash>` (one entry per pool), not a Hash keyed
+by origin. Each entry includes `:origin`, `:size`, `:checked_out`, `:idle`,
+`:closed`.
 
 | Class                              | When raised                                         |
 | ---------------------------------- | --------------------------------------------------- |

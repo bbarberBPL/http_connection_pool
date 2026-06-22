@@ -209,7 +209,7 @@ RSpec.describe HttpConnectionPool::Pool do
       results = Mutex.new
       log     = []
 
-      threads = 3.times.map do |i|
+      threads = Array.new(3) do |i|
         Thread.new do
           tiny.with do
             results.synchronize { log << "enter-#{i}" }
