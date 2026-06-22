@@ -76,19 +76,21 @@ RSpec.describe 'Fiber and Concurrent::Promises integration', :fiber do
     end
 
     describe 'Registry under Async' do
+      let(:local_registry) { HttpConnectionPool::Registry.new }
+
+      after { local_registry.close_all }
+
       it 'returns the same pool to concurrent fibers racing on the same origin' do
-        registry = HttpConnectionPool::Registry.new
-        pools    = Array.new(10)
+        pools = Array.new(10)
 
         Async do
           barrier = Async::Barrier.new
           10.times do |i|
-            barrier.async { pools[i] = registry.pool_for('https://fiber-race.example.com') }
+            barrier.async { pools[i] = local_registry.pool_for('https://fiber-race.example.com') }
           end
           barrier.wait
         end
 
-        registry.close_all
         expect(pools.uniq.length).to eq(1)
       end
     end

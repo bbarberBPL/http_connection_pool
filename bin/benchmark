@@ -85,9 +85,13 @@ scenarios = {
 scenarios.each do |label, runner|
   WeatherClient.release_connection_pool
 
-  elapsed = Benchmark.realtime { runner.call }
-  WeatherClient.print_stats(label, elapsed)
-  WeatherClient.print_pool_stats
+  begin
+    elapsed = Benchmark.realtime { runner.call }
+    WeatherClient.print_stats(label, elapsed)
+    WeatherClient.print_pool_stats
+  rescue StandardError => e
+    puts format('  %-30<label>s ERROR: %<message>s', label: label, message: e.message)
+  end
   puts
 end
 
