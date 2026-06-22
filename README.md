@@ -29,12 +29,13 @@ without you having to manage sockets, mutexes, or keep-alive state yourself.
 
 ## Requirements
 
-- Ruby `>= 3.3.0`
-- A C compiler/toolchain at install time. This gem depends on `http.rb`, whose
-  transitive dependency [`llhttp`](https://rubygems.org/gems/llhttp) ships a
-  native C extension that is compiled during `gem install` / `bundle install`.
-  On Debian/Ubuntu, for example, install `build-essential`; on macOS, the Xcode
-  Command Line Tools.
+- Ruby `>= 3.3.0`, **MRI (CRuby) only**. `http.rb` requires
+  [`llhttp`](https://rubygems.org/gems/llhttp), which publishes only a native
+  C-extension build (there is no JRuby or TruffleRuby variant), so this gem
+  does not run on non-MRI engines — the extension fails to build there.
+- A C compiler/toolchain at install time, since that `llhttp` extension is
+  compiled during `gem install` / `bundle install`. On Debian/Ubuntu, for
+  example, install `build-essential`; on macOS, the Xcode Command Line Tools.
 
 ### Dependency tree
 
@@ -306,6 +307,28 @@ released promptly rather than waiting on GC / socket timeouts:
 ```ruby
 at_exit { HttpConnectionPool::Registry.instance.close_all }
 ```
+
+## Security
+
+Keeping a persistent connection open means any header configured on the pool
+(`auth`, `Authorization`, `Cookie`) is reused for every request on that
+connection. Two practices keep that from leaking:
+
+- **Never build a request path from untrusted input without validating it.**
+  `http.rb` versions before **6.0.4** treat a protocol-relative path
+  (`//evil-host/path`) as a network-path reference and let it replace the
+  origin's authority, redirecting the request — and its connection-scoped
+  credentials — to an attacker-controlled host (advisory
+  `GHSA-r98x-p6m8-xcrv`). The gem's `~> 6.0` constraint picks up the fix
+  automatically once 6.0.4 is published; until then, reject request paths that
+  begin with `//` before passing them to `with_connection`.
+- **Cap the registry when origins come from untrusted input** — see
+  [Bounding the number of pools](#bounding-the-number-of-pools).
+
+Credentials are also kept out of `#inspect`, `#to_s`, and `pp` output for both
+the pool and the registry (origin, size, and option *keys* only — never option
+values). See
+[credential isolation](#one-pool-per-origin--options-and-credential-isolation).
 
 ## Rails compatibility
 

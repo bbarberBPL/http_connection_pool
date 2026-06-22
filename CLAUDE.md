@@ -85,6 +85,25 @@ dependencies.
 
 ---
 
+## Documentation
+
+- **Whenever a change affects behaviour, dependencies, requirements, or usage,
+  update `README.md` AND every relevant Markdown file under `docs/` in the same
+  change.** This is a standing instruction — do not wait to be asked. Historical
+  records (e.g. completed plans under `docs/superpowers/plans/`) are not
+  retroactively edited; update living docs only.
+- **New project-specific skills go in `docs/skills/<name>/SKILL.md`; new
+  project-specific subagents go in `docs/agents/<name>.md`.** See the README in
+  each directory for the file conventions. Capture a workflow as a skill/agent
+  rather than re-deriving it each session.
+- Markdown follows standard best practices: one `#` H1 per file, sentence-case
+  headings in nesting order (no skipped levels), fenced code blocks with a
+  language tag, reference links over bare URLs in prose, tables for structured
+  comparisons, and wrap prose at a sane width. Keep a blank line around headings,
+  lists, and code fences.
+
+---
+
 ## RuboCop
 
 - Run `bundle exec rubocop -a` to auto-fix correctable offenses (e.g.
