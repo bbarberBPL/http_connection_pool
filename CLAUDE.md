@@ -110,14 +110,29 @@ dependencies.
   rephrase: `it 'uses the parent class value'`.
 - `spec_helper.rb` sets `mocks.verify_partial_doubles = true` — stubs on real
   objects (not doubles) are also verified against the actual method signature.
-- Tests use `instance_double(HTTP::Client)` for the fake client.
-- Every `before` block that creates a fake HTTP::Client must stub both
-  `is_a?` and `kind_of?` for `HTTP::Client` — RSpec's `be_a` matcher uses
-  `kind_of?`, not `is_a?`, and missing the stub causes silent spec failures.
+- The fake `HTTP::Client` is provided by the `'with a stubbed HTTP client'`
+  shared context (`spec/support/stubbed_http_client.rb`), included globally in
+  `spec_helper.rb`. It defines `let(:fake_client)` and stubs `HTTP.persistent`
+  plus **both** `is_a?` and `kind_of?` for `HTTP::Client` — RSpec's `be_a`
+  matcher uses `kind_of?`, not `is_a?`, and a missing stub fails silently. Do
+  not re-stub these per file; add only test-specific stubs (e.g. `:get`) in a
+  local `before`.
+- **Helper methods/classes defined for specs go in a `spec/support` module,
+  included into example groups by a matching tag** — never define them at the
+  top level of a spec file (a top-level `class`/`def` leaks a global constant or
+  pollutes the example-group namespace). Pattern: write `module FooHelpers` in
+  `spec/support/foo_helpers.rb`, wire `config.include FooHelpers, :foo` in
+  `spec_helper.rb`, then tag the group `:foo`. Existing examples:
+  `ThreadSafetyHelpers` (`:thread_safety`, provides `cyclic_barrier`) and
+  `FiberHelpers` (`:fiber`, provides `make_pool`/`close_created_pools`).
+- `spec/support/**/*.rb` is auto-required by `spec_helper.rb`.
 - Use `after do` (not `after(:each) do`) for teardown.
 - `spec_helper.rb` resets the global registry in `config.after do` via
   `HttpConnectionPool::Registry.reset!` — every example starts with a clean
-  singleton. Do not leak state between examples.
+  singleton. Do not leak state between examples. Note `Registry.reset!` only
+  touches the global singleton — locally constructed `Registry.new`/`Pool.new`
+  objects must be closed by the example (use an `after` hook, e.g.
+  `FiberHelpers#close_created_pools`).
 - Integration specs live under `spec/integration/` and are tagged `:integration`.
   - `rails_compatibility_spec.rb` — verifies coexistence with `activesupport`
     7.2.x, shared-dep version overlap, and Connectable behaviour under

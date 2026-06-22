@@ -7,15 +7,6 @@ RSpec.describe HttpConnectionPool::Pool do
 
   let(:origin) { 'https://api.example.com:443' }
 
-  # Stub HTTP.persistent so tests never open a real socket.
-  let(:fake_client) { instance_double(HTTP::Client, close: nil) }
-
-  before do
-    allow(HTTP).to receive(:persistent).and_return(fake_client)
-    allow(fake_client).to receive(:is_a?).with(HTTP::Client).and_return(true)
-    allow(fake_client).to receive(:kind_of?).with(HTTP::Client).and_return(true)
-  end
-
   after { pool.close }
 
   describe '#initialize' do

@@ -5,14 +5,6 @@ require 'spec_helper'
 RSpec.describe HttpConnectionPool::Registry do
   subject(:registry) { described_class.new }
 
-  let(:fake_client) { instance_double(HTTP::Client, close: nil) }
-
-  before do
-    allow(HTTP).to receive(:persistent).and_return(fake_client)
-    allow(fake_client).to receive(:is_a?).with(HTTP::Client).and_return(true)
-    allow(fake_client).to receive(:kind_of?).with(HTTP::Client).and_return(true)
-  end
-
   describe '.instance' do
     it 'returns the same object on every call' do
       first = described_class.instance

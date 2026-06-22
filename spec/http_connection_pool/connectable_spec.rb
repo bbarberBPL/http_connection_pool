@@ -3,14 +3,6 @@
 require 'spec_helper'
 
 RSpec.describe HttpConnectionPool::Connectable do
-  let(:fake_client) { instance_double(HTTP::Client, close: nil) }
-
-  before do
-    allow(HTTP).to receive(:persistent).and_return(fake_client)
-    allow(fake_client).to receive(:is_a?).with(HTTP::Client).and_return(true)
-    allow(fake_client).to receive(:kind_of?).with(HTTP::Client).and_return(true)
-  end
-
   # ── include ────────────────────────────────────────────────────────────────
 
   describe 'when included into a class' do

@@ -20,14 +20,7 @@ require 'active_support'
 require 'active_support/version'
 
 RSpec.describe 'Rails compatibility', :integration do
-  let(:fake_client) { instance_double(HTTP::Client, close: nil) }
-
-  before do
-    allow(HTTP).to receive(:persistent).and_return(fake_client)
-    allow(fake_client).to receive(:is_a?).with(HTTP::Client).and_return(true)
-    allow(fake_client).to receive(:kind_of?).with(HTTP::Client).and_return(true)
-    allow(fake_client).to receive(:get).and_return(:ok)
-  end
+  before { allow(fake_client).to receive(:get).and_return(:ok) }
 
   it 'loads against the Rails 7.2 series' do
     expect(ActiveSupport::VERSION::STRING).to start_with('7.2')

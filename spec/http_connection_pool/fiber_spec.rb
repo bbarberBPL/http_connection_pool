@@ -18,37 +18,30 @@ require 'concurrent/atomic/atomic_fixnum'
 # Run in isolation:
 #   bundle exec rspec spec/http_connection_pool/fiber_spec.rb
 RSpec.describe 'Fiber and Concurrent::Promises integration', :fiber do
-  let(:fake_client) { instance_double(HTTP::Client, close: nil) }
-
-  before do
-    allow(HTTP).to receive(:persistent).and_return(fake_client)
-    allow(fake_client).to receive(:is_a?).with(HTTP::Client).and_return(true)
-    allow(fake_client).to receive(:kind_of?).with(HTTP::Client).and_return(true)
-  end
+  # The :fiber tag pulls in FiberHelpers (spec/support): make_pool records each
+  # Pool so close_created_pools can tear them all down even if an example raises.
+  after { close_created_pools }
 
   # ── Async / Fiber scheduler ───────────────────────────────────────────────
 
   describe 'Async fiber scheduler' do
     describe 'Pool under Async' do
       it 'completes 3 concurrent fibers sharing a size-1 pool without deadlock' do
-        pool      = HttpConnectionPool::Pool.new(origin: 'https://fiber.example.com:443', size: 1, timeout: 3.0)
+        pool      = make_pool('https://fiber.example.com:443', 1)
         completed = Concurrent::AtomicFixnum.new(0)
 
         Async do
           barrier = Async::Barrier.new
-          3.times do
-            barrier.async { pool.with { completed.increment } }
-          end
+          3.times { barrier.async { pool.with { completed.increment } } }
           barrier.wait
         end
 
-        pool.close
         expect(completed.value).to eq(3)
       end
 
       it 'completes N fibers sharing a size-N pool' do
         n         = 5
-        pool      = HttpConnectionPool::Pool.new(origin: 'https://fiber-n.example.com:443', size: n, timeout: 3.0)
+        pool      = make_pool('https://fiber-n.example.com:443', n)
         completed = Concurrent::AtomicFixnum.new(0)
 
         Async do
@@ -57,12 +50,11 @@ RSpec.describe 'Fiber and Concurrent::Promises integration', :fiber do
           barrier.wait
         end
 
-        pool.close
         expect(completed.value).to eq(n)
       end
 
       it 'returns all connections to the pool after all fibers complete' do
-        pool = HttpConnectionPool::Pool.new(origin: 'https://fiber-return.example.com:443', size: 3, timeout: 3.0)
+        pool = make_pool('https://fiber-return.example.com:443', 3)
 
         Async do
           barrier = Async::Barrier.new
@@ -71,7 +63,6 @@ RSpec.describe 'Fiber and Concurrent::Promises integration', :fiber do
         end
 
         expect(pool.stats[:checked_out]).to eq(0)
-        pool.close
       end
     end
 
