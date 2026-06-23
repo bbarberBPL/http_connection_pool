@@ -41,11 +41,11 @@ without you having to manage sockets, mutexes, or keep-alive state yourself.
 
 This gem pulls in the following runtime dependencies:
 
-| Gem               | Version constraint  | Notes                                  |
-| ----------------- | ------------------- | -------------------------------------- |
-| `http`            | `~> 6.0`            | The underlying http.rb client          |
-| `connection_pool` | `>= 2.5.5, < 3`     | Generic, fiber-aware pooling primitive |
-| `concurrent-ruby` | `~> 1.3`            | Lock-free registry & atomics           |
+| Gem               | Version constraint       | Notes                                  |
+| ----------------- | ------------------------ | -------------------------------------- |
+| `http`            | `~> 6.0`                 | The underlying http.rb client          |
+| `connection_pool` | `>= 2.5.5, < 3`          | Generic, fiber-aware pooling primitive |
+| `concurrent-ruby` | `>= 1.3.7, ~> 1.3`       | Lock-free registry & atomics; floor fixes CVE-2026-54904/54905/54906 |
 
 `http.rb` in turn brings in `http-cookie`, `domain_name`, and `llhttp` (the
 native parser noted above). All are pure Ruby except `llhttp`.

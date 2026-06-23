@@ -22,7 +22,12 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir['lib/**/*.rb', 'LICENSE', 'README.md']
 
-  spec.add_dependency 'concurrent-ruby', '~> 1.3'
+  # >= 1.3.7: fixes CVE-2026-54904 (AtomicReference#update livelock, high severity),
+  # CVE-2026-54905 (ReentrantReadWriteLock read-count overflow), and
+  # CVE-2026-54906 (ReadWriteLock wrong-thread write release).
+  # Verified: 1.3.7 published 2026-06-16 on RubyGems; advisories confirmed via
+  # api.github.com/advisories (GHSA-h8w8-99g7-qmvj, GHSA-wv3x-4vxv-whpp, GHSA-6wx8-w4f5-wwcr).
+  spec.add_dependency 'concurrent-ruby', '>= 1.3.7', '~> 1.3'
   spec.add_dependency 'connection_pool', '>= 2.5.5', '< 3'
   # `~> 6.0` intentionally allows 6.0.4+ to be picked up automatically once
   # published — 6.0.4 fixes a credential-leak via protocol-relative paths
