@@ -11,7 +11,10 @@ require 'http_connection_pool'
 # Heavy, noisy churn probe — kept OUT of the spec suite (RSS and GC timing are
 # not deterministic enough to assert on). Stubs the socket layer so we measure
 # OUR retention, not http.rb's buffers, then drives jobs inline and reports
-# before/after deltas. Run manually: bin/job_memory_probe [iterations]
+# before/after deltas.
+#
+# Run under Bundler so the pinned gem versions load, not whatever is installed
+# system-wide: bundle exec bin/job_memory_probe [iterations]
 
 # Override the real HTTP.persistent (loaded above) so no socket is ever opened
 # and we measure OUR retention, not http.rb's connection buffers. Defined as a
