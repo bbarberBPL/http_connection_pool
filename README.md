@@ -372,6 +372,17 @@ file/constant naming ever drifts. Like every gem, only `version.rb` is exempt
 (it defines `VERSION`, not `Version`). Zeitwerk is a **test-only** dependency,
 never a runtime one.
 
+### Background jobs
+
+The gem is also verified inside background jobs:
+`spec/integration/background_job_spec.rb` runs the `Connectable` pool through a
+bare `Sidekiq::Job`, an Active Job on the `:test` adapter, and an Active Job on
+the `:sidekiq` adapter (all under `Sidekiq::Testing.inline!`, no Redis). It
+asserts that jobs hitting one origin share a single pool, that job classes with
+different credentials get isolated pools, that a connection is returned to the
+pool when a job raises, and that neither the registry nor the live `Pool` count
+grows with job count. Sidekiq and Active Job are **test-only** dependencies.
+
 ## Development
 
 After checking out the repo, install dependencies and run the test suite:
