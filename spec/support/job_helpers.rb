@@ -59,6 +59,30 @@ module JobHelpers
     end
   end
 
+  class AltPoolClient
+    include HttpConnectionPool::Connectable
+
+    self.base_url     = 'https://jobs.example.com'
+    self.pool_size    = 5
+    self.pool_options = { headers: { 'Authorization' => 'Bearer alt-token' } }
+  end
+
+  class AltPoolJob
+    include Sidekiq::Job
+
+    def perform(path = '/x')
+      AltPoolClient.with_connection { |conn| conn.get(path) }
+    end
+  end
+
+  class RaisingJob
+    include Sidekiq::Job
+
+    def perform
+      PoolClient.with_connection { |_conn| raise 'boom' }
+    end
+  end
+
   class PoolActiveJob < ActiveJob::Base
     def perform(path = '/x')
       PoolClient.with_connection { |conn| conn.get(path) }

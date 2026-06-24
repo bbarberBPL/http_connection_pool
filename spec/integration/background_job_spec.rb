@@ -7,7 +7,9 @@ require 'concurrent/atomic/atomic_fixnum'
 # (HTTP.persistent returns fake_client), so behaviour is asserted as registry
 # invariants: pool counts, object counts, and checked-out counts.
 RSpec.describe 'Background job integration', :background_jobs, :integration do
-  before { allow(fake_client).to receive(:get).and_return(:ok) }
+  before do
+    allow(fake_client).to receive_messages(get: :ok, headers: fake_client)
+  end
 
   describe 'bare Sidekiq::Job' do
     it 'borrows a pooled connection when performed inline' do
@@ -56,6 +58,33 @@ RSpec.describe 'Background job integration', :background_jobs, :integration do
 
       expect(returned.value).to eq(20)
       expect(non_pool.value).to eq(0)
+    end
+  end
+
+  describe 'credential isolation across job classes' do
+    it 'gives two job classes on the same host distinct pools' do
+      JobHelpers::PoolJob.perform_async('/status')
+      JobHelpers::AltPoolJob.perform_async('/status')
+
+      expect(registry.stats.length).to eq(2)
+    end
+
+    it 'never shares a pool between the two job classes' do
+      JobHelpers::PoolJob.perform_async('/status')
+      JobHelpers::AltPoolJob.perform_async('/status')
+
+      expect(JobHelpers::PoolClient.connection_pool)
+        .not_to be(JobHelpers::AltPoolClient.connection_pool)
+    end
+  end
+
+  describe 'exception path' do
+    it 'returns the connection to the pool when a job raises mid-request' do
+      20.times do
+        expect { JobHelpers::RaisingJob.perform_async }.to raise_error(RuntimeError, 'boom')
+      end
+
+      expect(JobHelpers::PoolClient.connection_pool.stats[:checked_out]).to eq(0)
     end
   end
 end
