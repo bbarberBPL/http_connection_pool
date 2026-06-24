@@ -204,8 +204,29 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
 | `rake spec`           | RSpec only                                             |
 | `rake rubocop`        | RuboCop only                                           |
 | `rake bundle:audit:check` | Offline CVE scan                                  |
+| `rake build`          | Build the gem into `pkg/` (gitignored)                 |
+| `rake build:checksum` | Build, then write SHA-256 + SHA-512 to `checksums/`    |
 
 `rake ci` must always run clean before a PR. Never bypass bundler-audit.
+
+---
+
+## Publishing and release
+
+- **Gem publishing and pushing are user-only actions. Never run `gem push`,
+  `gem release`, `rake release`, `bundle exec rake release`, or `git push` —
+  recommend the command and let the user run it.** This mirrors the
+  `git push` deny rule in `.claude/settings.local.json`; releasing a gem is
+  outward-facing and irreversible (a yanked version's number can never be
+  reused), so it always belongs to the user.
+- **Record a checksum for every build.** `rake build:checksum` writes
+  `checksums/http_connection_pool-<version>.sha256` and `.sha512` next to the
+  build. These files are committed (the `checksums/` directory is tracked even
+  though `pkg/` and `*.gem` are gitignored) so a published gem's integrity can
+  be verified against the repo after the fact. Regenerate them whenever
+  `version.rb` changes, before the user publishes.
+- The built `.gem` itself is never committed (`*.gem` is gitignored); only its
+  checksums are.
 
 ---
 

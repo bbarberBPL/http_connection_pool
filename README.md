@@ -403,6 +403,31 @@ bin/console
 >> EXAMPLE.connection_pool_stats
 ```
 
+### Examples
+
+The [`examples/`](examples/) directory has runnable, real-backend examples that
+are not part of the gem package. [`examples/solr_client.rb`](examples/solr_client.rb)
+is a `Connectable` client for a Solr 8.11.x core, and
+[`examples/solr_update_demo.rb`](examples/solr_update_demo.rb) walks an
+add/update/read/delete round-trip through the pool. See
+[`examples/README.md`](examples/README.md) for how to run them.
+
+### Building and publishing
+
+```bash
+bundle exec rake build            # build the gem into pkg/ (gitignored)
+bundle exec rake build:checksum   # build, then write SHA-256 + SHA-512 to checksums/
+```
+
+`rake build:checksum` records both digests under `checksums/` in the standard
+`sha256sum -c` / `sha512sum -c` format, so a published artifact can be verified
+against this repository. The built `.gem` is never committed; only its
+checksums are.
+
+Publishing to RubyGems is a manual, maintainer-only step — this project
+deliberately ships no automated push task. Regenerate the checksums whenever
+the version changes, immediately before publishing.
+
 ## License
 
 Released under the [MIT License](LICENSE).
