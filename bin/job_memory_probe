@@ -1,0 +1,73 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+
+require 'http'
+require 'sidekiq'
+require 'sidekiq/testing'
+require 'http_connection_pool'
+
+# Heavy, noisy churn probe — kept OUT of the spec suite (RSS and GC timing are
+# not deterministic enough to assert on). Stubs the socket layer so we measure
+# OUR retention, not http.rb's buffers, then drives jobs inline and reports
+# before/after deltas. Run manually: bin/job_memory_probe [iterations]
+
+# Override the real HTTP.persistent (loaded above) so no socket is ever opened
+# and we measure OUR retention, not http.rb's connection buffers. Defined as a
+# singleton method on the existing constant to avoid a second top-level module.
+def HTTP.persistent(*) = Object.new
+
+Sidekiq::Testing.inline!
+
+ITERATIONS = (ARGV[0] || 20_000).to_i
+DIVIDER    = ('-' * 60).freeze
+
+class ProbeClient
+  include HttpConnectionPool::Connectable
+
+  self.base_url  = 'https://probe.example.com'
+  self.pool_size = 10
+
+  class Job
+    include Sidekiq::Job
+
+    def perform
+      ProbeClient.with_connection { |conn| conn.respond_to?(:get) }
+    end
+  end
+end
+
+def rss_kb
+  File.read('/proc/self/status')[/VmRSS:\s+(\d+)/, 1].to_i
+rescue StandardError
+  -1
+end
+
+def pool_count
+  ObjectSpace.each_object(HttpConnectionPool::Pool).count
+end
+
+GC.start
+before = { rss: rss_kb, slots: GC.stat(:heap_live_slots), pools: pool_count,
+           registry: HttpConnectionPool::Registry.instance.stats.length }
+
+ITERATIONS.times { ProbeClient::Job.perform_async }
+
+GC.start
+after = { rss: rss_kb, slots: GC.stat(:heap_live_slots), pools: pool_count,
+          registry: HttpConnectionPool::Registry.instance.stats.length }
+
+puts DIVIDER
+puts "job_memory_probe — #{ITERATIONS} inline jobs through ProbeClient"
+puts DIVIDER
+header = '  %-22<metric>s %12<before>s %12<after>s %12<delta>s'
+puts format(header, metric: 'metric', before: 'before', after: 'after', delta: 'delta')
+%i[rss slots pools registry].each do |k|
+  puts format(
+    '  %-22<metric>s %12<before>d %12<after>d %12<delta>d',
+    metric: k, before: before[k], after: after[k], delta: after[k] - before[k]
+  )
+end
+puts DIVIDER
+puts 'pools/registry delta ~0 = clean; a climb with iterations = leak/bloat.'
