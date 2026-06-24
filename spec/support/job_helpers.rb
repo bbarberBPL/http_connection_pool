@@ -4,6 +4,25 @@ require 'sidekiq'
 require 'sidekiq/testing'
 require 'active_job'
 
+# Sidekiq 7.3 ships its own Active Job adapter
+# (active_job/queue_adapters/sidekiq_adapter.rb) whose JobWrapper subclasses
+# Sidekiq::ActiveJob::Wrapper. That wrapper is normally defined by
+# sidekiq/rails.rb, which `require "rails"` -- the full Rails meta-gem, which is
+# not a dependency of this gem. So we define the wrapper here with the exact
+# body from sidekiq/rails.rb, letting the :sidekiq adapter resolve without
+# booting a Rails engine.
+module Sidekiq
+  module ActiveJob
+    class Wrapper
+      include Sidekiq::Job
+
+      def perform(job_data)
+        ::ActiveJob::Base.execute(job_data.merge('provider_job_id' => jid))
+      end
+    end
+  end
+end
+
 # Helpers and job classes for the background-job integration spec. Included
 # into any example group tagged :background_jobs (wired in spec_helper.rb).
 #
@@ -22,6 +41,34 @@ module JobHelpers
 
     base.after do
       Sidekiq::Testing.fake!
+    end
+  end
+
+  class PoolClient
+    include HttpConnectionPool::Connectable
+
+    self.base_url  = 'https://jobs.example.com'
+    self.pool_size = 5
+  end
+
+  class PoolJob
+    include Sidekiq::Job
+
+    def perform(path = '/x')
+      PoolClient.with_connection { |conn| conn.get(path) }
+    end
+  end
+
+  class PoolActiveJob < ActiveJob::Base
+    def perform(path = '/x')
+      PoolClient.with_connection { |conn| conn.get(path) }
+    end
+  end
+
+  class SidekiqAdapterActiveJob < ActiveJob::Base
+    self.queue_adapter = :sidekiq
+    def perform(path = '/x')
+      PoolClient.with_connection { |conn| conn.get(path) }
     end
   end
 
