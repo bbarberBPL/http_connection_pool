@@ -87,4 +87,25 @@ RSpec.describe 'Background job integration', :background_jobs, :integration do
       expect(JobHelpers::PoolClient.connection_pool.stats[:checked_out]).to eq(0)
     end
   end
+
+  describe 'memory and bloat invariants' do
+    it 'does not accumulate Pool objects as job count grows' do
+      GC.start
+      base = ObjectSpace.each_object(HttpConnectionPool::Pool).count
+
+      2_000.times { JobHelpers::PoolJob.perform_async('/status') }
+
+      GC.start
+      after = ObjectSpace.each_object(HttpConnectionPool::Pool).count
+
+      # One pool for the single origin — not one per job. Allow a small slack
+      # for objects GC has not yet collected.
+      expect(after - base).to be <= 1
+    end
+
+    it 'keeps the registry sized to distinct origins, not job count' do
+      2_000.times { JobHelpers::PoolJob.perform_async('/status') }
+      expect(registry.stats.length).to eq(1)
+    end
+  end
 end
