@@ -10,14 +10,17 @@ require 'active_job'
 # sidekiq/rails.rb, which `require "rails"` -- the full Rails meta-gem, which is
 # not a dependency of this gem. So we define the wrapper here with the exact
 # body from sidekiq/rails.rb, letting the :sidekiq adapter resolve without
-# booting a Rails engine.
-module Sidekiq
-  module ActiveJob
-    class Wrapper
-      include Sidekiq::Job
+# booting a Rails engine. The `unless defined?` guard means the real wrapper
+# wins if a future test ever loads sidekiq/rails -- we never clobber it.
+unless defined?(Sidekiq::ActiveJob::Wrapper)
+  module Sidekiq
+    module ActiveJob
+      class Wrapper
+        include Sidekiq::Job
 
-      def perform(job_data)
-        ::ActiveJob::Base.execute(job_data.merge('provider_job_id' => jid))
+        def perform(job_data)
+          ::ActiveJob::Base.execute(job_data.merge('provider_job_id' => jid))
+        end
       end
     end
   end
