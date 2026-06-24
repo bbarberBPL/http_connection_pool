@@ -34,4 +34,12 @@ group :test do
   # spec/integration/zeitwerk_compliance_spec.rb can assert the gem's own
   # file/constant layout would pass a Zeitwerk eager-load.
   gem 'zeitwerk', '~> 2.6'
+
+  # Background-job integration is verified at test time only — neither Sidekiq
+  # nor Active Job is a runtime dependency (the gem must stay usable outside
+  # Rails and outside any job framework). Sidekiq runs in inline testing mode
+  # (Sidekiq::Testing.inline!), so CI needs no Redis service. activejob is
+  # pinned to the same 7.2.x series as activesupport above and drags in globalid.
+  gem 'activejob', '~> 7.2.3'
+  gem 'sidekiq', '~> 7.3'
 end

@@ -20,6 +20,7 @@ RSpec.configure do |config|
   config.include_context 'with a stubbed HTTP client'
   config.include ThreadSafetyHelpers, :thread_safety
   config.include FiberHelpers, :fiber
+  config.include JobHelpers, :background_jobs
 
   # Reset the global registry between examples so pools don't bleed across tests.
   config.after do
