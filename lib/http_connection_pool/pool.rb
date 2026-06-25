@@ -6,6 +6,7 @@
 require 'concurrent/atomic/atomic_boolean'
 require 'connection_pool'
 require 'http'
+require_relative 'errors'
 
 module HttpConnectionPool
   # Manages a pool of persistent HTTP::Session connections for a single URL
@@ -21,11 +22,10 @@ module HttpConnectionPool
   #
   # Pool instances are never created directly — obtain them through Registry.
   class Pool
-    # Raised when no connection becomes available within the timeout.
-    class TimeoutError < StandardError; end
-
-    # Raised when the pool is used after it has been closed.
-    class ClosedError < StandardError; end
+    # Backward-compatible aliases — the canonical classes live in errors.rb
+    # under HttpConnectionPool. Existing `rescue Pool::TimeoutError` keeps working.
+    TimeoutError = HttpConnectionPool::TimeoutError
+    ClosedError  = HttpConnectionPool::ClosedError
 
     DEFAULT_SIZE    = 5
     DEFAULT_TIMEOUT = 5.0 # seconds to wait for a connection to become available

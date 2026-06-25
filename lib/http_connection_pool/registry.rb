@@ -6,6 +6,7 @@ require 'concurrent/atomic/atomic_reference'
 require 'concurrent/map'
 require 'digest'
 require 'uri'
+require_relative 'errors'
 require_relative 'pool'
 
 module HttpConnectionPool
@@ -26,8 +27,8 @@ module HttpConnectionPool
   #   registry = HttpConnectionPool::Registry.instance
   #   registry.pool_for('https://api.example.com').with { |conn| conn.get('/status') }
   class Registry
-    # Raised when creating a new pool would exceed the configured max_pools cap.
-    class PoolLimitError < StandardError; end
+    # Backward-compatible alias — canonical class lives in errors.rb.
+    PoolLimitError = HttpConnectionPool::PoolLimitError
 
     SUPPORTED_SCHEMES = %w[http https].freeze
 

@@ -16,8 +16,11 @@ require 'spec_helper'
 # proving nothing. Running in a clean Ruby process exercises a real autoload.
 RSpec.describe 'Zeitwerk compliance', :integration do
   # The standard "Zeitwerk for gems" setup: manage lib/, but ignore the entry
-  # file and version.rb (the latter defines VERSION, not Version — the one
-  # universal exception every gem makes).
+  # file, version.rb, and errors.rb. version.rb defines VERSION, not Version
+  # (the one universal exception every gem makes); errors.rb defines the whole
+  # error hierarchy (Error, ConfigurationError, TimeoutError, ...) directly under
+  # HttpConnectionPool rather than a single Errors constant matching its filename,
+  # so it is ignored for the same reason.
   let(:probe) do
     <<~RUBY
       require 'zeitwerk'
@@ -26,6 +29,7 @@ RSpec.describe 'Zeitwerk compliance', :integration do
       loader.push_dir(lib)
       loader.ignore(File.join(lib, 'http_connection_pool.rb'))
       loader.ignore(File.join(lib, 'http_connection_pool', 'version.rb'))
+      loader.ignore(File.join(lib, 'http_connection_pool', 'errors.rb'))
       loader.setup
       loader.eager_load
       # Force-resolve every constant Zeitwerk is responsible for; a naming
