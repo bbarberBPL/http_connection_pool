@@ -254,11 +254,30 @@ are **development/test only** — never add them to `spec.add_dependency`.
 by origin. Each entry includes `:origin`, `:size`, `:checked_out`, `:idle`,
 `:closed`.
 
-| Class                              | When raised                                         |
-| ---------------------------------- | --------------------------------------------------- |
-| `Pool::TimeoutError`               | No connection available within `timeout`            |
-| `Pool::ClosedError`                | `#with` called on a closed pool                     |
-| `Registry::PoolLimitError`         | New pool would exceed `max_pools` cap               |
+All pool/registry errors descend from `HttpConnectionPool::Error`. Legacy
+constants (`Pool::TimeoutError`, `Pool::ClosedError`, `Registry::PoolLimitError`)
+are aliases of the canonical classes in `errors.rb`.
+
+| Class                                  | When raised                                         |
+| -------------------------------------- | --------------------------------------------------- |
+| `HttpConnectionPool::TimeoutError`     | No connection available within `timeout`            |
+| `HttpConnectionPool::ClosedError`      | `#with` called on a closed pool                     |
+| `HttpConnectionPool::PoolLimitError`   | New pool would exceed `max_pools` cap               |
+| `HttpConnectionPool::InvalidURLError`  | URL has no/unsupported scheme or no host (`ConfigurationError`) |
+| `HttpConnectionPool::OptionKeyError`   | Option value not safely keyable (`ConfigurationError`) |
+
+`Registry#pool_key` rejects any option value that is not a scalar or a
+hash/array of scalars (`KEYABLE_SCALARS`), so `ssl_context:` raises
+`OptionKeyError` — this prevents a silent collision where different credentials
+map to the same SHA-256 key. Restoring `ssl_context:` support is deferred to the
+canonical-serializer work (case C) in
+`docs/superpowers/specs/2026-06-25-error-handling-design.md`.
+
+Request-body `HTTP::*` errors propagate raw and are intentionally not remapped.
+
+`max_pools must be >= 1` (`ArgumentError`) and the `Registry.configure`
+already-initialised guard (`RuntimeError`) stay as core errors — they are
+programmer-contract violations, not pool-domain errors.
 
 `OptionsMismatchError` was intentionally removed. Same-origin + different-options
 is now a supported, non-error case handled by distinct digest keys.

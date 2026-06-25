@@ -144,12 +144,14 @@ end
 | `:auth`       | `HTTP::Session#auth`      | `{ auth: 'Bearer token' }`                    |
 | `:proxy`      | `HTTP::Session#via`       | `{ proxy: ['proxy.example.com', 8080] }`      |
 | `:ssl`        | session SSL options       | `{ ssl: { ... } }`                            |
-| `:ssl_context`| session SSL options       | `{ ssl_context: OpenSSL::SSL::SSLContext.new }`|
+| `:ssl_context`| session SSL options       | `raises OptionKeyError — use :ssl`            |
 
 > **Note (http.rb v6):** the chainable `.ssl` method was removed in http v6, so
-> `:ssl` / `:ssl_context` are seeded into the session's options *before* it is
-> made persistent rather than applied as a chainable call. The behaviour from a
-> caller's perspective is unchanged.
+> `:ssl` is seeded into the session's options *before* it is made persistent.
+> The `:ssl_context` option is currently **not supported** — an `SSLContext`
+> object cannot be safely used as a pool key (different contexts can share a
+> key), so passing it raises `HttpConnectionPool::OptionKeyError`. Configure TLS
+> via the `:ssl` hash (`ssl: { ca_file: ..., verify_mode: ... }`) instead.
 
 ### One pool per (origin + options), and credential isolation
 
@@ -354,6 +356,39 @@ Credentials are also kept out of `#inspect`, `#to_s`, and `pp` output for both
 the pool and the registry (origin, size, and option *keys* only — never option
 values). See
 [credential isolation](#one-pool-per-origin--options-and-credential-isolation).
+
+## Error handling
+
+Every error raised by the pool/registry layer descends from a single root, so
+one rescue catches them all:
+
+| Error                                  | Raised when                                      |
+| -------------------------------------- | ------------------------------------------------ |
+| `HttpConnectionPool::TimeoutError`     | No connection available within the checkout timeout |
+| `HttpConnectionPool::ClosedError`      | A closed pool is used                            |
+| `HttpConnectionPool::PoolLimitError`   | A new pool would exceed `max_pools`              |
+| `HttpConnectionPool::InvalidURLError`  | A URL has no/unsupported scheme or no host       |
+| `HttpConnectionPool::OptionKeyError`   | An option value cannot be used as a pool key     |
+
+`InvalidURLError` and `OptionKeyError` are both `ConfigurationError`, which is
+itself a `HttpConnectionPool::Error`:
+
+```ruby
+begin
+  client.with_connection { |conn| conn.get('/status') }
+rescue HttpConnectionPool::Error => e
+  # any pool/registry-layer failure
+end
+```
+
+The legacy constants `Pool::TimeoutError`, `Pool::ClosedError`, and
+`Registry::PoolLimitError` still work — they are aliases of the classes above.
+
+**Request errors pass through.** A request you make inside the block
+(`conn.get(...)`) is yours: any `HTTP::Error` (timeouts, connection failures,
+status errors) propagates **unchanged**, because the pool does not own your
+request semantics. Rescue `HttpConnectionPool::Error` for pool/registry
+failures and `HTTP::Error` for request failures.
 
 ## Rails compatibility
 
