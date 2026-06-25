@@ -246,6 +246,46 @@ RSpec.describe HttpConnectionPool::Registry do
     end
   end
 
+  describe 'option keyability guard' do
+    let(:registry) { described_class.new }
+
+    after { registry.close_all }
+
+    it 'raises OptionKeyError when an option value is not safely keyable' do
+      require 'openssl'
+      ctx = OpenSSL::SSL::SSLContext.new
+      expect { registry.pool_for('https://api.example.com', ssl_context: ctx) }
+        .to raise_error(HttpConnectionPool::OptionKeyError, /ssl_context/)
+    end
+
+    it 'names the offending option and its class but not any value' do
+      require 'openssl'
+      ctx = OpenSSL::SSL::SSLContext.new
+      registry.pool_for('https://api.example.com',
+                        headers: { 'Authorization' => 'SECRET-TOKEN' },
+                        ssl_context: ctx)
+    rescue HttpConnectionPool::OptionKeyError => e
+      expect(e.message).to include('ssl_context', 'SSLContext')
+      expect(e.message).not_to include('SECRET-TOKEN')
+    end
+
+    it 'guards release as well as pool_for' do
+      require 'openssl'
+      ctx = OpenSSL::SSL::SSLContext.new
+      expect { registry.release('https://api.example.com', ssl_context: ctx) }
+        .to raise_error(HttpConnectionPool::OptionKeyError)
+    end
+
+    it 'still accepts the ssl hash and other scalar options' do
+      expect do
+        pool = registry.pool_for('https://api.example.com',
+                                 ssl: { verify_mode: 0 },
+                                 headers: { 'Accept' => 'application/json' })
+        expect(pool).to be_a(HttpConnectionPool::Pool)
+      end.not_to raise_error
+    end
+  end
+
   describe '#inspect / #to_s' do
     it 'does not expose pool keys or pool contents' do
       registry.pool_for('https://api.example.com',

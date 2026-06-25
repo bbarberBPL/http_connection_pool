@@ -32,6 +32,14 @@ module HttpConnectionPool
 
     SUPPORTED_SCHEMES = %w[http https].freeze
 
+    # Option values that can be canonically serialized into a pool key. Anything
+    # else (an SSLContext, a PKey, a proc, an arbitrary object) is rejected by
+    # ensure_keyable! rather than risking a silent inspect-based collision.
+    # FUTURE (case C): a canonical serializer would let us key these safely —
+    # e.g. restore ssl_context: by digesting its real security material — and
+    # remove this rejection. See docs/superpowers/specs/2026-06-25-error-handling-design.md.
+    KEYABLE_SCALARS = [String, Symbol, Integer, Float, TrueClass, FalseClass, NilClass].freeze
+
     @instance_ref = Concurrent::AtomicReference.new(nil)
 
     # @return [Registry] the process-wide singleton instance
@@ -164,7 +172,30 @@ module HttpConnectionPool
     #   * the digest itself never appears in user-visible output, so it cannot
     #     be used to verify guesses about credential values
     def pool_key(origin, options)
+      ensure_keyable!(options)
       Digest::SHA256.hexdigest("#{origin}|#{normalize_options(options).inspect}")
+    end
+
+    # Reject any option value that cannot be canonically serialized for keying.
+    # The path is built from option *keys* (option names like :ssl_context),
+    # never values, so the message cannot leak credential material.
+    def ensure_keyable!(value, path = 'options')
+      case value
+      when *KEYABLE_SCALARS
+        nil
+      when Hash
+        value.each do |k, v|
+          ensure_keyable!(k, "#{path} key")
+          ensure_keyable!(v, "#{path}[#{k.inspect}]")
+        end
+      when Array
+        value.each_with_index { |v, i| ensure_keyable!(v, "#{path}[#{i}]") }
+      else
+        raise OptionKeyError,
+              "option #{path} is a #{value.class} and cannot be used as a pool key; " \
+              'pass SSL material via the `ssl:` hash (e.g. ssl: { ca_file: ... }), or ' \
+              'give each distinct context its own Connectable subclass / explicit pool'
+      end
     end
 
     # Recursively sort hash keys (by their string representation) so that two
