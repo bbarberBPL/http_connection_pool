@@ -206,12 +206,19 @@ RSpec.describe HttpConnectionPool::Pool do
       expect(conn.default_options.headers['Accept']).to eq('application/json')
     end
 
-    it 'applies an ssl_context option (regression: .ssl chainable was removed in v6)' do
+    # ssl_context: is rejected at the Registry boundary (OptionKeyError) because
+    # an SSLContext cannot be safely used as a pool key. Pool.new itself does not
+    # key options, so a directly-constructed pool can still seed ssl_context into
+    # the session — but the supported path is the registry, so we assert the
+    # rejection there rather than encouraging the direct-construction path.
+    it 'rejects ssl_context at the registry boundary with OptionKeyError' do
       require 'openssl'
       ctx = OpenSSL::SSL::SSLContext.new
-      conn = build(ssl_context: ctx)
-      expect(conn).to be_a(HTTP::Session)
-      expect(conn.default_options.ssl_context).to be(ctx)
+      registry = HttpConnectionPool::Registry.new
+      expect { registry.pool_for(origin, ssl_context: ctx) }
+        .to raise_error(HttpConnectionPool::OptionKeyError)
+    ensure
+      registry&.close_all
     end
 
     it 'applies an ssl hash option without error' do
