@@ -276,6 +276,13 @@ RSpec.describe HttpConnectionPool::Registry do
         .to raise_error(HttpConnectionPool::OptionKeyError)
     end
 
+    it 'does not leak a sensitive string used as a nested option key' do
+      registry.pool_for('https://api.example.com',
+                        headers: { 'SECRET-HEADER-NAME' => Object.new })
+    rescue HttpConnectionPool::OptionKeyError => e
+      expect(e.message).not_to include('SECRET-HEADER-NAME')
+    end
+
     it 'still accepts the ssl hash and other scalar options' do
       expect do
         pool = registry.pool_for('https://api.example.com',

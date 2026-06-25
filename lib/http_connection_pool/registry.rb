@@ -177,8 +177,10 @@ module HttpConnectionPool
     end
 
     # Reject any option value that cannot be canonically serialized for keying.
-    # The path is built from option *keys* (option names like :ssl_context),
-    # never values, so the message cannot leak credential material.
+    # The path is built only from Symbol option names (e.g. :ssl_context) and
+    # array indices; any non-Symbol key (e.g. a user-supplied header name, which
+    # could itself be sensitive) is rendered as its class, never its content, so
+    # the message can never leak credential material.
     def ensure_keyable!(value, path = 'options')
       case value
       when *KEYABLE_SCALARS
@@ -186,7 +188,7 @@ module HttpConnectionPool
       when Hash
         value.each do |k, v|
           ensure_keyable!(k, "#{path} key")
-          ensure_keyable!(v, "#{path}[#{k.inspect}]")
+          ensure_keyable!(v, "#{path}[#{key_label(k)}]")
         end
       when Array
         value.each_with_index { |v, i| ensure_keyable!(v, "#{path}[#{i}]") }
@@ -196,6 +198,13 @@ module HttpConnectionPool
               'pass SSL material via the `ssl:` hash (e.g. ssl: { ca_file: ... }), or ' \
               'give each distinct context its own Connectable subclass / explicit pool'
       end
+    end
+
+    # Symbol keys are option names (:headers, :ssl_context) and safe to show;
+    # any other key (e.g. a user-supplied String header name) is shown only as
+    # its class, so a sensitive value used as a key cannot leak into the message.
+    def key_label(key)
+      key.is_a?(Symbol) ? key.inspect : "<#{key.class}>"
     end
 
     # Recursively sort hash keys (by their string representation) so that two
