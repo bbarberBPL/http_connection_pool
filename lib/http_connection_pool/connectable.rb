@@ -115,7 +115,7 @@ module HttpConnectionPool
     module ClassMethods
       # Borrow a connection from the pool and yield it to the block.
       #
-      # @yieldparam conn [HTTP::Client] a persistent client pre-configured for base_url
+      # @yieldparam conn [HTTP::Session] a persistent session pre-configured for base_url
       # @return [Object] the return value of the block
       def with_connection(&)
         connection_pool.with(&)

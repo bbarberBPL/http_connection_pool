@@ -63,9 +63,9 @@ RSpec.describe HttpConnectionPool::Pool do
   end
 
   describe '#with' do
-    it 'yields an HTTP::Client' do
+    it 'yields an HTTP::Session' do
       pool.with do |conn|
-        expect(conn).to be_a(HTTP::Client)
+        expect(conn).to be_a(HTTP::Session)
       end
     end
 
@@ -171,6 +171,53 @@ RSpec.describe HttpConnectionPool::Pool do
       expect(pool.stats[:checked_out]).to eq(1)
       done.push(:go)
       t.join
+    end
+  end
+
+  # These exercise the REAL http.rb build path (no stub), so they verify that
+  # apply_options produces a usable HTTP::Session on http v6 rather than raising.
+  # HTTP.persistent / HTTP::Session#persistent build lazily, so no socket opens
+  # until a request is made — constructing the connection is enough to assert on.
+  describe 'building real connections (http v6 integration)' do
+    def build(**options)
+      real_pool = described_class.new(origin: origin, size: 1, timeout: 1.0, **options)
+      created_pools << real_pool
+      real_pool.send(:build_connection)
+    end
+
+    let(:created_pools) { [] }
+
+    before do
+      # Undo the global stub so HTTP.persistent really runs for these examples.
+      allow(HTTP).to receive(:persistent).and_call_original
+    end
+
+    after { created_pools.each(&:close) }
+
+    it 'yields a persistent HTTP::Session for a bare origin' do
+      conn = build
+      expect(conn).to be_a(HTTP::Session)
+      expect(conn.persistent?).to be true
+    end
+
+    it 'applies header, auth, and timeout options without error' do
+      conn = build(timeout: 5, headers: { 'Accept' => 'application/json' }, auth: 'Bearer x')
+      expect(conn).to be_a(HTTP::Session)
+      expect(conn.default_options.headers['Accept']).to eq('application/json')
+    end
+
+    it 'applies an ssl_context option (regression: .ssl chainable was removed in v6)' do
+      require 'openssl'
+      ctx = OpenSSL::SSL::SSLContext.new
+      conn = build(ssl_context: ctx)
+      expect(conn).to be_a(HTTP::Session)
+      expect(conn.default_options.ssl_context).to be(ctx)
+    end
+
+    it 'applies an ssl hash option without error' do
+      conn = build(ssl: { verify_mode: OpenSSL::SSL::VERIFY_NONE })
+      expect(conn).to be_a(HTTP::Session)
+      expect(conn.persistent?).to be true
     end
   end
 

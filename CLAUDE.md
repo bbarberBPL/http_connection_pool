@@ -27,11 +27,16 @@ dependencies.
 - New concurrent-ruby primitives must be required individually
   (`concurrent/atomic/atomic_boolean`, not `concurrent-ruby`) to keep load time
   and memory footprint minimal.
-- **MRI (CRuby) only.** http.rb requires `llhttp`, which publishes only a
-  native C-extension build (no JRuby/TruffleRuby variant), so the gem cannot run
-  on non-MRI engines. This is relied upon: the `max_pools` soft-cap spec asserts
-  an exact rejection count because MRI's GVL serialises the check-and-insert. Do
-  not add JRuby to any matrix or weaken that test.
+- **Tested on MRI (CRuby); JRuby planned but untested.** http.rb selects its
+  parser by engine — `llhttp` (native C extension) on MRI, `llhttp-ffi` on
+  JRuby (see the platform conditional at the bottom of http's gemspec) — so the
+  gem is not inherently MRI-locked. We simply have not verified JRuby yet; do
+  not claim JRuby support in docs until it is exercised in CI. One MRI-specific
+  assumption to preserve: the `max_pools` soft-cap spec asserts an exact
+  rejection count because MRI's GVL serialises the check-and-insert region. That
+  expectation holds only under the GVL, so if a JRuby/TruffleRuby matrix is ever
+  added, that test must be relaxed there rather than the soft cap being treated
+  as a hard guarantee.
 
 ### 2. Security
 - **Credential isolation** — pools are keyed by SHA-256 digest of
@@ -234,7 +239,7 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
 
 | Gem               | Constraint          | Why                                      |
 | ----------------- | ------------------- | ---------------------------------------- |
-| `http`            | `~> 6.0`            | Underlying HTTP client (llhttp C ext)    |
+| `http`            | `~> 6.0`            | Underlying HTTP client (llhttp on MRI, llhttp-ffi on JRuby) |
 | `connection_pool` | `>= 2.5.5, < 3`     | `auto_reload_after_fork`, Fiber-aware    |
 | `concurrent-ruby` | `~> 1.3`            | `AtomicReference`, `AtomicBoolean`, `Map`|
 

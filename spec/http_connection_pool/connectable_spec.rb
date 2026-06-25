@@ -27,9 +27,9 @@ RSpec.describe HttpConnectionPool::Connectable do
     end
 
     describe '.with_connection' do
-      it 'yields an HTTP::Client to the block' do
+      it 'yields an HTTP::Session to the block' do
         client_class.with_connection do |conn|
-          expect(conn).to be_a(HTTP::Client)
+          expect(conn).to be_a(HTTP::Session)
         end
       end
 
@@ -66,7 +66,7 @@ RSpec.describe HttpConnectionPool::Connectable do
       subject(:instance) { client_class.new }
 
       it '#with_connection delegates to the class pool' do
-        instance.with_connection { |conn| expect(conn).to be_a(HTTP::Client) }
+        instance.with_connection { |conn| expect(conn).to be_a(HTTP::Session) }
       end
 
       it '#connection_pool is the same as the class pool' do
@@ -122,7 +122,7 @@ RSpec.describe HttpConnectionPool::Connectable do
     end
 
     it 'provides .with_connection' do
-      api_module.with_connection { |conn| expect(conn).to be_a(HTTP::Client) }
+      api_module.with_connection { |conn| expect(conn).to be_a(HTTP::Session) }
     end
 
     it 'provides .connection_pool' do

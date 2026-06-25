@@ -8,7 +8,12 @@ require 'connection_pool'
 require 'http'
 
 module HttpConnectionPool
-  # Manages a pool of persistent HTTP::Client connections for a single URL origin.
+  # Manages a pool of persistent HTTP::Session connections for a single URL
+  # origin. On http v6, HTTP.persistent returns an HTTP::Session, and http's own
+  # README notes that a persistent session is not thread-safe on its own — it
+  # points to the `connection_pool` gem for thread-safe persistent use. That is
+  # exactly the pattern this class follows: each caller checks out its own
+  # Session for the duration of a request.
   #
   # Backed by the `connection_pool` gem (>= 2.5.5), which is both thread- and
   # Fiber.scheduler-aware: when running under a fiber scheduler, blocking
@@ -28,7 +33,7 @@ module HttpConnectionPool
     # @param origin  [String] canonical origin, e.g. "https://api.example.com:443"
     # @param size    [Integer] maximum number of concurrent connections
     # @param timeout [Float]   seconds to block waiting for a free connection
-    # @param options [Hash]    options forwarded to every HTTP::Client (headers, timeout, ssl, etc.)
+    # @param options [Hash]    options forwarded to every HTTP::Session (headers, timeout, ssl, etc.)
     def initialize(origin:, size: DEFAULT_SIZE, timeout: DEFAULT_TIMEOUT, **options)
       @origin  = origin
       @size    = Integer(size)
@@ -44,11 +49,11 @@ module HttpConnectionPool
 
     attr_reader :origin, :size
 
-    # Yields a live HTTP::Client scoped to @origin, returning it to the pool when done.
+    # Yields a live HTTP::Session scoped to @origin, returning it to the pool when done.
     #
     # @raise [ClosedError]  if the pool has been shut down
     # @raise [TimeoutError] if no connection is available within the configured timeout
-    # @yieldparam conn [HTTP::Client]
+    # @yieldparam conn [HTTP::Session]
     # @return [Object] the value returned by the block
     def with(&)
       raise ClosedError, "pool for #{@origin} is closed" if @closed.true?
@@ -112,25 +117,36 @@ module HttpConnectionPool
     private
 
     def build_connection
-      apply_options(HTTP.persistent(@origin))
+      apply_options(persistent_session)
     end
 
-    def apply_options(client)
-      client = client.timeout(@options[:timeout]) if @options[:timeout]
-      client = client.headers(@options[:headers]) if @options[:headers]
-      client = client.auth(@options[:auth])       if @options[:auth]
-      client = client.via(*@options[:proxy])      if @options[:proxy]
-      apply_ssl(client)
+    # http v6 removed the `.ssl` chainable, and SSL config must be present in a
+    # session's options before `.persistent` is called. So we seed a Session
+    # with any SSL material first, then turn it persistent; for the common
+    # no-SSL case we use HTTP.persistent directly.
+    def persistent_session
+      ssl = ssl_options
+      return HTTP.persistent(@origin) if ssl.empty?
+
+      HTTP::Session.new(**ssl).persistent(@origin)
     end
 
-    def apply_ssl(client)
+    def ssl_options
       if @options[:ssl_context]
-        client.ssl(@options[:ssl_context])
+        { ssl_context: @options[:ssl_context] }
       elsif @options[:ssl]
-        client.ssl(@options[:ssl])
+        { ssl: @options[:ssl] }
       else
-        client
+        {}
       end
+    end
+
+    def apply_options(session)
+      session = session.timeout(@options[:timeout]) if @options[:timeout]
+      session = session.headers(@options[:headers]) if @options[:headers]
+      session = session.auth(@options[:auth])       if @options[:auth]
+      session = session.via(*@options[:proxy])      if @options[:proxy]
+      session
     end
   end
 end

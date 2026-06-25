@@ -3,7 +3,7 @@
 Thread-safe (and Fiber-scheduler-aware) persistent HTTP connection pooling for
 the [http.rb](https://github.com/httprb/http) gem.
 
-`HttpConnectionPool` keeps **one pool of persistent `HTTP::Client` connections
+`HttpConnectionPool` keeps **one pool of persistent `HTTP::Session` connections
 per URL origin** (scheme + host + port) and hands them out to threads or fibers
 on demand. It is built on top of the battle-tested
 [`connection_pool`](https://github.com/mperham/connection_pool) gem and uses
@@ -11,9 +11,15 @@ on demand. It is built on top of the battle-tested
 primitives for its registry, so checkouts are safe under heavy concurrency
 without you having to manage sockets, mutexes, or keep-alive state yourself.
 
+On http.rb v6, `HTTP.persistent` returns an `HTTP::Session`, and http.rb's own
+README notes that a persistent session is **not** thread-safe on its own —
+it recommends pairing it with the `connection_pool` gem. That is exactly what
+this gem does, with an origin-keyed registry, a `Connectable` mixin, and
+credential-isolated pools layered on top.
+
 ## Features
 
-- **Persistent connections** — reuses keep-alive `HTTP::Client` connections
+- **Persistent connections** — reuses keep-alive `HTTP::Session` connections
   instead of opening a fresh socket per request.
 - **One pool per origin** — a global registry guarantees a single shared pool
   for every `scheme://host:port`, normalised automatically from any URL.
@@ -29,13 +35,15 @@ without you having to manage sockets, mutexes, or keep-alive state yourself.
 
 ## Requirements
 
-- Ruby `>= 3.3.0`, **MRI (CRuby) only**. `http.rb` requires
-  [`llhttp`](https://rubygems.org/gems/llhttp), which publishes only a native
-  C-extension build (there is no JRuby or TruffleRuby variant), so this gem
-  does not run on non-MRI engines — the extension fails to build there.
-- A C compiler/toolchain at install time, since that `llhttp` extension is
-  compiled during `gem install` / `bundle install`. On Debian/Ubuntu, for
-  example, install `build-essential`; on macOS, the Xcode Command Line Tools.
+- Ruby `>= 3.3.0`. Tested on **MRI (CRuby)**. JRuby support is planned but
+  currently **untested** — `http.rb` selects its parser by engine
+  ([`llhttp`](https://rubygems.org/gems/llhttp), a native C extension, on MRI
+  and `llhttp-ffi` on JRuby), so JRuby installs are not blocked, just not yet
+  verified.
+- On MRI, a C compiler/toolchain is needed at install time, since the `llhttp`
+  extension is compiled during `gem install` / `bundle install`. On
+  Debian/Ubuntu, for example, install `build-essential`; on macOS, the Xcode
+  Command Line Tools.
 
 ### Dependency tree
 
@@ -47,8 +55,9 @@ This gem pulls in the following runtime dependencies:
 | `connection_pool` | `>= 2.5.5, < 3`          | Generic, fiber-aware pooling primitive |
 | `concurrent-ruby` | `>= 1.3.7, ~> 1.3`       | Lock-free registry & atomics; floor fixes CVE-2026-54904/54905/54906 |
 
-`http.rb` in turn brings in `http-cookie`, `domain_name`, and `llhttp` (the
-native parser noted above). All are pure Ruby except `llhttp`.
+`http.rb` in turn brings in `http-cookie`, `domain_name`, and its parser
+(`llhttp` on MRI, `llhttp-ffi` on JRuby). All are pure Ruby except the native
+`llhttp` build used on MRI.
 
 ## Installation
 
@@ -125,17 +134,22 @@ end
 
 ### Configuration options
 
-`pool_options` (or the keyword args to `pool_for`) are forwarded to every
-`HTTP::Client` in the pool:
+`pool_options` (or the keyword args to `pool_for`) configure every
+`HTTP::Session` in the pool:
 
-| Option        | Forwarded to            | Example                                       |
-| ------------- | ----------------------- | --------------------------------------------- |
-| `:timeout`    | `HTTP::Client#timeout`  | `{ timeout: 5 }`                              |
-| `:headers`    | `HTTP::Client#headers`  | `{ headers: { 'Accept' => 'application/json' } }` |
-| `:auth`       | `HTTP::Client#auth`     | `{ auth: 'Bearer token' }`                    |
-| `:proxy`      | `HTTP::Client#via`      | `{ proxy: ['proxy.example.com', 8080] }`      |
-| `:ssl`        | `HTTP::Client#ssl`      | `{ ssl: { ... } }`                            |
-| `:ssl_context`| `HTTP::Client#ssl`      | `{ ssl_context: OpenSSL::SSL::SSLContext.new }`|
+| Option        | Applied via               | Example                                       |
+| ------------- | ------------------------- | --------------------------------------------- |
+| `:timeout`    | `HTTP::Session#timeout`   | `{ timeout: 5 }`                              |
+| `:headers`    | `HTTP::Session#headers`   | `{ headers: { 'Accept' => 'application/json' } }` |
+| `:auth`       | `HTTP::Session#auth`      | `{ auth: 'Bearer token' }`                    |
+| `:proxy`      | `HTTP::Session#via`       | `{ proxy: ['proxy.example.com', 8080] }`      |
+| `:ssl`        | session SSL options       | `{ ssl: { ... } }`                            |
+| `:ssl_context`| session SSL options       | `{ ssl_context: OpenSSL::SSL::SSLContext.new }`|
+
+> **Note (http.rb v6):** the chainable `.ssl` method was removed in http v6, so
+> `:ssl` / `:ssl_context` are seeded into the session's options *before* it is
+> made persistent rather than applied as a chainable call. The behaviour from a
+> caller's perspective is unchanged.
 
 ### One pool per (origin + options), and credential isolation
 
@@ -328,13 +342,11 @@ Keeping a persistent connection open means any header configured on the pool
 connection. Two practices keep that from leaking:
 
 - **Never build a request path from untrusted input without validating it.**
-  `http.rb` versions before **6.0.4** treat a protocol-relative path
-  (`//evil-host/path`) as a network-path reference and let it replace the
-  origin's authority, redirecting the request — and its connection-scoped
-  credentials — to an attacker-controlled host (advisory
-  `GHSA-r98x-p6m8-xcrv`). The gem's `~> 6.0` constraint picks up the fix
-  automatically once 6.0.4 is published; until then, reject request paths that
-  begin with `//` before passing them to `with_connection`.
+  A protocol-relative path (`//evil-host/path`) can be interpreted as a
+  network-path reference that replaces the origin's authority, redirecting the
+  request — and its connection-scoped credentials — to an attacker-controlled
+  host. As a defensive measure, reject request paths that begin with `//`
+  before passing them to `with_connection`.
 - **Cap the registry when origins come from untrusted input** — see
   [Bounding the number of pools](#bounding-the-number-of-pools).
 
