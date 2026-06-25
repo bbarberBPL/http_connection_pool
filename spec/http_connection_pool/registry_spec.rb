@@ -55,14 +55,19 @@ RSpec.describe HttpConnectionPool::Registry do
       expect(p2).not_to be_closed
     end
 
-    it 'raises ArgumentError for a URL without a scheme' do
-      expect { registry.pool_for('api.example.com/users') }
-        .to raise_error(ArgumentError, /scheme/)
+    it 'raises InvalidURLError when the scheme is missing' do
+      expect { described_class.new.pool_for('api.example.com') }
+        .to raise_error(HttpConnectionPool::InvalidURLError, /scheme/)
     end
 
-    it 'raises ArgumentError for an unsupported scheme' do
-      expect { registry.pool_for('ftp://files.example.com') }
-        .to raise_error(ArgumentError, /unsupported scheme/)
+    it 'raises InvalidURLError for an unsupported scheme' do
+      expect { described_class.new.pool_for('ftp://api.example.com') }
+        .to raise_error(HttpConnectionPool::InvalidURLError, /unsupported scheme/)
+    end
+
+    it 'raises InvalidURLError when the host is missing' do
+      expect { described_class.new.pool_for('https://') }
+        .to raise_error(HttpConnectionPool::InvalidURLError, /host/)
     end
 
     context 'when the same origin is requested with different options' do

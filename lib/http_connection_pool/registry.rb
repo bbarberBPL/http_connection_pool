@@ -232,9 +232,9 @@ module HttpConnectionPool
     # @return [String]  e.g. "https://api.example.com:443"
     def extract_origin(url)
       uri = URI.parse(url)
-      raise ArgumentError, "URL must have a scheme (http/https): #{url}" unless uri.scheme
-      raise ArgumentError, "unsupported scheme: #{uri.scheme}"           unless SUPPORTED_SCHEMES.include?(uri.scheme)
-      raise ArgumentError, "URL must have a host: #{url}"                unless uri.host
+      raise InvalidURLError, "URL must have a scheme (http/https): #{url}" unless uri.scheme
+      raise InvalidURLError, "unsupported scheme: #{uri.scheme}"           unless SUPPORTED_SCHEMES.include?(uri.scheme)
+      raise InvalidURLError, "URL must have a host: #{url}"                if uri.host.nil? || uri.host.empty?
 
       # URI always populates the default port (80/443) for http/https, so
       # uri.port is reliable here and no fallback table is needed.
