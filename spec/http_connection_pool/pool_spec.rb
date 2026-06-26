@@ -277,6 +277,12 @@ RSpec.describe HttpConnectionPool::Pool do
       conn = build(proxy: ['proxy.example.com', 8080])
       expect(conn).to be_a(HTTP::Session)
     end
+
+    it 'resolves a relative request path against the persistent origin' do
+      conn = build
+      request = HTTP::Request::Builder.new(conn.default_options).build(:get, '/users/1')
+      expect(request.uri.to_s).to eq('https://api.example.com/users/1')
+    end
   end
 
   describe 'thread safety' do
