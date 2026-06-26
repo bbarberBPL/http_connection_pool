@@ -146,12 +146,13 @@ module HttpConnectionPool
     end
 
     # Merge auth into the headers hash as an Authorization header. Uses merge
-    # (not mutation) so the frozen @options[:headers] is never modified.
+    # (not mutation) so the frozen @options[:headers] is never modified, and
+    # `to_s` to mirror http.rb's own `auth` chainable (which stringifies value).
     def headers_with_auth
       headers = @options[:headers] || {}
       return headers unless @options[:auth]
 
-      headers.merge('Authorization' => @options[:auth])
+      headers.merge('Authorization' => @options[:auth].to_s)
     end
 
     # timeout/proxy need http.rb's own translation (number/hash -> timeout_class
