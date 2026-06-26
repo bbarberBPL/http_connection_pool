@@ -14,21 +14,21 @@ RSpec.describe 'Background job integration', :background_jobs, :integration do
   describe 'bare Sidekiq::Job' do
     it 'borrows a pooled connection when performed inline' do
       JobHelpers::PoolJob.perform_async('/status')
-      expect(HTTP).to have_received(:persistent).with('https://jobs.example.com:443')
+      expect(HTTP::Session).to have_received(:new)
     end
   end
 
   describe 'Active Job on the :test adapter' do
     it 'borrows a pooled connection when performed' do
       perform_active_job(JobHelpers::PoolActiveJob, '/status')
-      expect(HTTP).to have_received(:persistent).with('https://jobs.example.com:443')
+      expect(HTTP::Session).to have_received(:new)
     end
   end
 
   describe 'Active Job on the :sidekiq adapter' do
     it 'borrows a pooled connection when performed inline' do
       JobHelpers::SidekiqAdapterActiveJob.perform_later('/status')
-      expect(HTTP).to have_received(:persistent).with('https://jobs.example.com:443')
+      expect(HTTP::Session).to have_received(:new)
     end
   end
 
@@ -41,7 +41,7 @@ RSpec.describe 'Background job integration', :background_jobs, :integration do
     it 'reuses the same pool rather than rebuilding it per job' do
       50.times { JobHelpers::PoolJob.perform_async('/status') }
       # One persistent client built per pooled connection, never one per job.
-      expect(HTTP).to have_received(:persistent).at_most(JobHelpers::PoolClient.pool_size).times
+      expect(HTTP::Session).to have_received(:new).at_most(JobHelpers::PoolClient.pool_size).times
     end
 
     it 'hands every concurrent job a live pool without deadlock' do

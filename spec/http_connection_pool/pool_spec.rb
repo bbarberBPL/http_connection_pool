@@ -188,7 +188,8 @@ RSpec.describe HttpConnectionPool::Pool do
     let(:created_pools) { [] }
 
     before do
-      # Undo the global stub so HTTP.persistent really runs for these examples.
+      # Undo the global stubs so the real http.rb build path runs here.
+      allow(HTTP::Session).to receive(:new).and_call_original
       allow(HTTP).to receive(:persistent).and_call_original
     end
 
@@ -225,6 +226,27 @@ RSpec.describe HttpConnectionPool::Pool do
       conn = build(ssl: { verify_mode: OpenSSL::SSL::VERIFY_NONE })
       expect(conn).to be_a(HTTP::Session)
       expect(conn.persistent?).to be true
+    end
+
+    it 'sets persistent to the origin as an options field' do
+      conn = build
+      expect(conn.default_options.persistent).to eq('https://api.example.com')
+    end
+
+    it 'folds auth into an Authorization header' do
+      conn = build(auth: 'Bearer xyz')
+      expect(conn.default_options.headers['Authorization']).to eq('Bearer xyz')
+    end
+
+    it 'merges auth with explicit headers rather than clobbering them' do
+      conn = build(auth: 'Bearer xyz', headers: { 'Accept' => 'application/json' })
+      expect(conn.default_options.headers['Accept']).to eq('application/json')
+      expect(conn.default_options.headers['Authorization']).to eq('Bearer xyz')
+    end
+
+    it 'applies a proxy option without error' do
+      conn = build(proxy: ['proxy.example.com', 8080])
+      expect(conn).to be_a(HTTP::Session)
     end
   end
 

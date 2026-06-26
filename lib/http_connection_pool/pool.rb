@@ -117,34 +117,40 @@ module HttpConnectionPool
     private
 
     def build_connection
-      apply_options(persistent_session)
+      session = HTTP::Session.new(HTTP::Options.new(**native_options))
+      apply_chainable(session)
     end
 
-    # http v6 removed the `.ssl` chainable, and SSL config must be present in a
-    # session's options before `.persistent` is called. So we seed a Session
-    # with any SSL material first, then turn it persistent; for the common
-    # no-SSL case we use HTTP.persistent directly.
-    def persistent_session
-      ssl = ssl_options
-      return HTTP.persistent(@origin) if ssl.empty?
-
-      HTTP::Session.new(**ssl).persistent(@origin)
+    # Directly-mappable HTTP::Options fields, including persistent (= origin).
+    # auth is folded into headers as an Authorization header, matching what
+    # http.rb's own `auth` chainable does internally.
+    def native_options
+      opts = { persistent: @origin, headers: headers_with_auth }
+      opts[:ssl] = @options[:ssl] if @options[:ssl]
+      # TODO: case C — when ssl_context becomes safely keyable, set
+      # opts[:ssl_context] = @options[:ssl_context] here. It is currently
+      # rejected at the registry keying boundary, so it never reaches this
+      # method. See docs/superpowers/specs/2026-06-25-error-handling-design.md.
+      opts
     end
 
-    def ssl_options
-      if @options[:ssl_context]
-        { ssl_context: @options[:ssl_context] }
-      elsif @options[:ssl]
-        { ssl: @options[:ssl] }
-      else
-        {}
-      end
+    # Merge auth into the headers hash as an Authorization header. Uses merge
+    # (not mutation) so the frozen @options[:headers] is never modified.
+    def headers_with_auth
+      headers = @options[:headers] || {}
+      return headers unless @options[:auth]
+
+      headers.merge('Authorization' => @options[:auth])
     end
 
-    def apply_options(session)
+    # timeout/proxy need http.rb's own translation (number/hash -> timeout_class
+    # + timeout_options; positional args -> proxy_hash), so they stay chainable.
+    # Early-return when neither is set (the common case) to avoid extra
+    # HTTP::Session allocations from branch/dup.
+    def apply_chainable(session)
+      return session unless @options[:timeout] || @options[:proxy]
+
       session = session.timeout(@options[:timeout]) if @options[:timeout]
-      session = session.headers(@options[:headers]) if @options[:headers]
-      session = session.auth(@options[:auth])       if @options[:auth]
       session = session.via(*@options[:proxy])      if @options[:proxy]
       session
     end
