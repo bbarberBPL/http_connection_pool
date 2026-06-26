@@ -210,6 +210,10 @@ end
 and `{ 'X-B' => '2', 'X-A' => '1' }` are treated as the same options and
 return the same pool. The registry normalises nested hashes before hashing.
 
+**Host casing** does not matter either — `https://API.Example.com` and
+`https://api.example.com` resolve to the same origin (and pool), since DNS
+hostnames are case-insensitive.
+
 When you `release` a pool you must pass the same options so the registry can
 locate the correct key:
 

@@ -60,9 +60,14 @@ dependencies.
   the GHSA/CVE resolve?). A changelog on `main` can list unreleased versions; an
   AI summary can fabricate advisory IDs. Pinning a floor to an unpublished
   version makes the gem uninstallable.
-- `pool_key` must use `normalize_options` (deep-sort all hash keys by `to_s`)
-  before hashing so that logically identical options in different key-insertion
-  order always resolve to the same pool.
+- `pool_key` must use `normalize_options` (deep-sort all hash keys by
+  `inspect`) before hashing so that logically identical options in different
+  key-insertion order always resolve to the same pool. Sort by `inspect`, not
+  `to_s`: a String and Symbol that stringify alike (`'a'`/`:a`) would otherwise
+  order non-deterministically and split one logical option set across two pools.
+- `extract_origin` must downcase the host (DNS is case-insensitive, so
+  `API.example.com` and `api.example.com` are one origin) and rescue
+  `URI::InvalidURIError`, re-raising it as `InvalidURLError`.
 
 ### 3. Performance
 - `connection_pool` accessor in `ClassMethods` must be memoized in

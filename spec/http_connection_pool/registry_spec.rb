@@ -55,9 +55,25 @@ RSpec.describe HttpConnectionPool::Registry do
       expect(p2).not_to be_closed
     end
 
+    it 'treats hosts differing only in case as the same origin' do
+      p1 = registry.pool_for('https://API.Example.COM')
+      p2 = registry.pool_for('https://api.example.com')
+      expect(p1).to be(p2)
+    end
+
+    it 'reports a downcased host in the origin' do
+      expect(registry.pool_for('https://API.Example.COM').origin)
+        .to eq('https://api.example.com:443')
+    end
+
     it 'raises InvalidURLError when the scheme is missing' do
       expect { described_class.new.pool_for('api.example.com') }
         .to raise_error(HttpConnectionPool::InvalidURLError, /scheme/)
+    end
+
+    it 'raises InvalidURLError when the URL is malformed' do
+      expect { described_class.new.pool_for('https://exa mple.com') }
+        .to raise_error(HttpConnectionPool::InvalidURLError)
     end
 
     it 'raises InvalidURLError for an unsupported scheme' do
@@ -244,6 +260,30 @@ RSpec.describe HttpConnectionPool::Registry do
       p2 = registry.pool_for('https://api.example.com', timeout: 5, auth: 'tok')
       expect(p1).to be(p2)
     end
+
+    it 'orders mixed string and symbol keys deterministically' do
+      p1 = registry.pool_for('https://api.example.com',
+                             headers: { :'X-A' => '1', 'X-A' => '2' })
+      p2 = registry.pool_for('https://api.example.com',
+                             headers: { 'X-A' => '2', :'X-A' => '1' })
+      expect(p1).to be(p2)
+    end
+
+    it 'treats a deeply nested options hash as the same pool regardless of key order' do
+      deep_a = { ssl: { params: { verify: true, ciphers: %w[a b] } },
+                 headers: { 'X-A' => '1', 'X-B' => '2' } }
+      deep_b = { headers: { 'X-B' => '2', 'X-A' => '1' },
+                 ssl: { params: { ciphers: %w[a b], verify: true } } }
+      p1 = registry.pool_for('https://api.example.com', **deep_a)
+      p2 = registry.pool_for('https://api.example.com', **deep_b)
+      expect(p1).to be(p2)
+    end
+
+    it 'distinguishes deeply nested options that genuinely differ' do
+      p1 = registry.pool_for('https://api.example.com', ssl: { params: { verify: true } })
+      p2 = registry.pool_for('https://api.example.com', ssl: { params: { verify: false } })
+      expect(p1).not_to be(p2)
+    end
   end
 
   describe 'option keyability guard' do
@@ -283,12 +323,38 @@ RSpec.describe HttpConnectionPool::Registry do
       expect(e.message).not_to include('SECRET-HEADER-NAME')
     end
 
+    it 'raises OptionKeyError when a non-scalar object is used as a key' do
+      expect { registry.pool_for('https://api.example.com', headers: { Object.new => '1' }) }
+        .to raise_error(HttpConnectionPool::OptionKeyError)
+    end
+
+    it 'raises OptionKeyError for a non-scalar value nested deep in the options' do
+      expect do
+        registry.pool_for('https://api.example.com',
+                          ssl: { params: { store: Object.new } })
+      end.to raise_error(HttpConnectionPool::OptionKeyError)
+    end
+
+    it 'raises OptionKeyError for a non-scalar value inside a nested array' do
+      expect do
+        registry.pool_for('https://api.example.com',
+                          ssl: { ciphers: ['AES', Object.new] })
+      end.to raise_error(HttpConnectionPool::OptionKeyError)
+    end
+
     it 'still accepts the ssl hash and other scalar options' do
       expect do
         pool = registry.pool_for('https://api.example.com',
                                  ssl: { verify_mode: 0 },
                                  headers: { 'Accept' => 'application/json' })
         expect(pool).to be_a(HttpConnectionPool::Pool)
+      end.not_to raise_error
+    end
+
+    it 'accepts deeply nested scalar-only options' do
+      expect do
+        registry.pool_for('https://api.example.com',
+                          ssl: { params: { verify: true, ciphers: %w[a b] } })
       end.not_to raise_error
     end
   end

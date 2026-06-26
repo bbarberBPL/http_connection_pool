@@ -207,14 +207,20 @@ module HttpConnectionPool
       key.is_a?(Symbol) ? key.inspect : "<#{key.class}>"
     end
 
-    # Recursively sort hash keys (by their string representation) so that two
-    # logically identical option hashes always produce the same digest regardless
-    # of key-insertion order.  Arrays and scalar values are passed through as-is.
+    # Recursively sort hash keys so that two logically identical option hashes
+    # always produce the same digest regardless of key-insertion order. Arrays
+    # and scalar values are passed through as-is.
+    #
+    # Sort by k.inspect, not k.to_s: a String and a Symbol that stringify to the
+    # same value (e.g. 'a' and :a) would otherwise be indistinguishable to the
+    # comparator, so their relative order would depend on insertion order and
+    # the same logical hash could digest to two different keys. inspect renders
+    # them distinctly (":a" vs "\"a\""), giving a total, deterministic order.
     def normalize_options(obj)
       case obj
       when Hash
         obj.each_with_object({}) { |(k, v), h| h[k] = normalize_options(v) }
-           .sort_by { |k, _| k.to_s }.to_h
+           .sort_by { |k, _| k.inspect }.to_h
       when Array then obj.map { |v| normalize_options(v) }
       else obj
       end
@@ -271,14 +277,22 @@ module HttpConnectionPool
     # @param url [String]
     # @return [String]  e.g. "https://api.example.com:443"
     def extract_origin(url)
-      uri = URI.parse(url)
+      uri = parse_url(url)
       raise InvalidURLError, "URL must have a scheme (http/https): #{url}" unless uri.scheme
       raise InvalidURLError, "unsupported scheme: #{uri.scheme}"           unless SUPPORTED_SCHEMES.include?(uri.scheme)
       raise InvalidURLError, "URL must have a host: #{url}"                if uri.host.nil? || uri.host.empty?
 
-      # URI always populates the default port (80/443) for http/https, so
-      # uri.port is reliable here and no fallback table is needed.
-      "#{uri.scheme}://#{uri.host}:#{uri.port}"
+      # Hostnames are case-insensitive (DNS), so downcase to avoid keying two
+      # pools for the same origin written in different cases. URI always
+      # populates the default port (80/443) for http/https, so uri.port is
+      # reliable here and no fallback table is needed.
+      "#{uri.scheme}://#{uri.host.downcase}:#{uri.port}"
+    end
+
+    def parse_url(url)
+      URI.parse(url)
+    rescue URI::InvalidURIError => e
+      raise InvalidURLError, "could not parse URL: #{url} (#{e.message})"
     end
   end
 end
