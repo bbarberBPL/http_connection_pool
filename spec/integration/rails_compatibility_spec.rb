@@ -67,9 +67,11 @@ RSpec.describe 'Rails compatibility', :integration do
     it 'borrows a pooled connection from an instance' do
       result = service_class.new.fetch_status
       expect(result).to eq(:ok)
-      # The build path now constructs sessions via HTTP::Session.new (the pool
-      # keys on the normalised origin; that is verified by the registry specs).
+      # The build path constructs sessions via HTTP::Session.new, and the pool
+      # keys on the normalised origin — asserted directly via the registry stats.
       expect(HTTP::Session).to have_received(:new)
+      expect(HttpConnectionPool::Registry.instance.stats.map { |s| s[:origin] })
+        .to include('https://api.internal.example.com:443')
     end
 
     it 'shares a single pool across instances, as a Rails singleton service would' do

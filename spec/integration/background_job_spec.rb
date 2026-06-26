@@ -15,6 +15,7 @@ RSpec.describe 'Background job integration', :background_jobs, :integration do
     it 'borrows a pooled connection when performed inline' do
       JobHelpers::PoolJob.perform_async('/status')
       expect(HTTP::Session).to have_received(:new)
+      expect(registry.stats.map { |s| s[:origin] }).to include('https://jobs.example.com:443')
     end
   end
 
@@ -22,6 +23,7 @@ RSpec.describe 'Background job integration', :background_jobs, :integration do
     it 'borrows a pooled connection when performed' do
       perform_active_job(JobHelpers::PoolActiveJob, '/status')
       expect(HTTP::Session).to have_received(:new)
+      expect(registry.stats.map { |s| s[:origin] }).to include('https://jobs.example.com:443')
     end
   end
 
@@ -29,6 +31,7 @@ RSpec.describe 'Background job integration', :background_jobs, :integration do
     it 'borrows a pooled connection when performed inline' do
       JobHelpers::SidekiqAdapterActiveJob.perform_later('/status')
       expect(HTTP::Session).to have_received(:new)
+      expect(registry.stats.map { |s| s[:origin] }).to include('https://jobs.example.com:443')
     end
   end
 
