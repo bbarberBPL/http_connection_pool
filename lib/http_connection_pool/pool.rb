@@ -38,7 +38,7 @@ module HttpConnectionPool
       @origin  = origin
       @size    = Integer(size)
       @timeout = Float(timeout)
-      @options = options.freeze
+      @options = deep_freeze(options)
 
       raise ArgumentError, 'size must be >= 1' unless @size >= 1
       raise ArgumentError, 'timeout must be > 0' unless @timeout.positive?
@@ -115,6 +115,17 @@ module HttpConnectionPool
     end
 
     private
+
+    # Freeze the options hash and every nested hash/array/value, so a pool's
+    # configuration cannot mutate after creation (and cannot diverge from the
+    # options that were hashed into its registry key).
+    def deep_freeze(obj)
+      case obj
+      when Hash  then obj.each { |k, v| [k, v].each { |e| deep_freeze(e) } }
+      when Array then obj.each { |v| deep_freeze(v) }
+      end
+      obj.freeze
+    end
 
     def build_connection
       session = HTTP::Session.new(HTTP::Options.new(**native_options))

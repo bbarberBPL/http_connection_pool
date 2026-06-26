@@ -29,6 +29,36 @@ RSpec.describe HttpConnectionPool::Pool do
     end
   end
 
+  describe 'option immutability' do
+    subject(:pool) do
+      described_class.new(origin: origin, size: 1, timeout: 1.0,
+                          headers: { 'Accept' => 'application/json' },
+                          ssl: { ciphers: %w[a b] })
+    end
+
+    after { pool.close }
+
+    it 'freezes the options hash' do
+      expect(pool.instance_variable_get(:@options)).to be_frozen
+    end
+
+    it 'freezes nested option hashes' do
+      headers = pool.instance_variable_get(:@options)[:headers]
+      expect(headers).to be_frozen
+    end
+
+    it 'freezes nested option arrays' do
+      ciphers = pool.instance_variable_get(:@options)[:ssl][:ciphers]
+      expect(ciphers).to be_frozen
+    end
+
+    it 'raises when a caller tries to mutate a nested option hash" \
+       " after pool creation' do
+      headers = pool.instance_variable_get(:@options)[:headers]
+      expect { headers['X'] = '1' }.to raise_error(FrozenError)
+    end
+  end
+
   describe 'credential redaction in #inspect / #to_s' do
     subject(:pool) do
       described_class.new(origin: origin, size: 2, timeout: 1.0,
