@@ -135,23 +135,28 @@ end
 ### Configuration options
 
 `pool_options` (or the keyword args to `pool_for`) configure every
-`HTTP::Session` in the pool:
+`HTTP::Session` in the pool. Most are set on the underlying `HTTP::Options`
+when the session is built; `timeout` and `proxy` use http.rb's chainable
+translation:
 
-| Option        | Applied via               | Example                                       |
-| ------------- | ------------------------- | --------------------------------------------- |
-| `:timeout`    | `HTTP::Session#timeout`   | `{ timeout: 5 }`                              |
-| `:headers`    | `HTTP::Session#headers`   | `{ headers: { 'Accept' => 'application/json' } }` |
-| `:auth`       | `HTTP::Session#auth`      | `{ auth: 'Bearer token' }`                    |
-| `:proxy`      | `HTTP::Session#via`       | `{ proxy: ['proxy.example.com', 8080] }`      |
-| `:ssl`        | session SSL options       | `{ ssl: { ... } }`                            |
-| `:ssl_context`| session SSL options       | `raises OptionKeyError — use :ssl`            |
+| Option        | How it is applied                          | Example                                       |
+| ------------- | ------------------------------------------ | --------------------------------------------- |
+| `:headers`    | `HTTP::Options` `headers` field            | `{ headers: { 'Accept' => 'application/json' } }` |
+| `:auth`       | folded into an `Authorization` header      | `{ auth: 'Bearer token' }`                    |
+| `:ssl`        | `HTTP::Options` `ssl` field                | `{ ssl: { ca_file: '/path/ca.pem' } }`        |
+| `:timeout`    | `HTTP::Session#timeout` (chainable)        | `{ timeout: 5 }`                              |
+| `:proxy`      | `HTTP::Session#via` (chainable)            | `{ proxy: ['proxy.example.com', 8080] }`      |
+| `:ssl_context`| not supported — raises `OptionKeyError`    | use `:ssl` instead                            |
 
-> **Note (http.rb v6):** the chainable `.ssl` method was removed in http v6, so
-> `:ssl` is seeded into the session's options *before* it is made persistent.
-> The `:ssl_context` option is currently **not supported** — an `SSLContext`
-> object cannot be safely used as a pool key (different contexts can share a
-> key), so passing it raises `HttpConnectionPool::OptionKeyError`. Configure TLS
-> via the `:ssl` hash (`ssl: { ca_file: ..., verify_mode: ... }`) instead.
+Request paths are resolved against `base_url`'s origin, so pass relative paths
+(`conn.get('/users/1')`) — they target the pool's `scheme://host:port`.
+
+> **Note (http.rb v6):** `:ssl_context` is not supported. An `OpenSSL::SSL::SSLContext`
+> cannot be safely used as a pool key — two contexts that differ only in a
+> write-only field (e.g. `min_version`/`max_version`, which OpenSSL does not let
+> us read back) would key to the same pool and silently share connections. So
+> passing `:ssl_context` raises `HttpConnectionPool::OptionKeyError`. Configure
+> TLS via the `:ssl` hash (`ssl: { ca_file: ..., verify_mode: ... }`) instead.
 
 ### One pool per (origin + options), and credential isolation
 

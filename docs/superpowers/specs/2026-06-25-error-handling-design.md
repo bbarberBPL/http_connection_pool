@@ -200,18 +200,26 @@ New `spec/http_connection_pool/errors_spec.rb`:
 
 ## Future work (case C — not in this plan)
 
-Replace `Object#inspect` in `pool_key` with a canonical, injective recursive
-serializer (deterministic encoding of type + value, raising on anything it
-cannot canonically encode). Benefits:
+Restoring keyable `ssl_context:` requires deriving a stable, collision-free
+digest for an `OpenSSL::SSL::SSLContext`. An empirical probe showed this cannot
+be done from the context's readable state: `min_version`/`max_version` are
+write-only (raise `NoMethodError` on read), and raw OpenSSL-level options set in
+C are not introspectable. Any digest built from readable fields would therefore
+treat two genuinely different contexts as identical — reintroducing the silent
+collision this guard exists to prevent.
 
-- removes the reliance on `inspect` being injective for the safe-to-key types;
-- enables **restoring `ssl_context:` support** by deriving the digest from the
-  context's actual security-relevant material (cert, private key, `ca_file`,
-  verify_mode, verify_hostname, ciphers) instead of rejecting it — at which
-  point the `OptionKeyError` rejection for `ssl_context:` is lifted.
+Two viable routes when this is revisited:
 
-Recorded here and in a code comment at the keyability guard so the temporary
-`ssl_context:` rejection is understood as deliberate, not an oversight.
+1. **Caller-supplied key discriminator** — accept `ssl_context:` for building
+   but require an accompanying caller-controlled key string that goes into the
+   digest in place of the un-fingerprintable object. The caller asserts which
+   contexts differ.
+2. **Construction wrapping** — wrap `SSLContext` creation so the gem records the
+   security-relevant material the caller set, and digest that recorded input.
+
+Until then, `ssl_context:` is rejected by the keyability guard, and
+`Pool#native_options` omits it (with a TODO pointing here). The build path
+itself already accepts it via `HTTP::Options`, so only the keying side blocks it.
 
 ## Out of scope
 

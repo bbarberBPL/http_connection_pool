@@ -68,6 +68,11 @@ dependencies.
 - `extract_origin` must downcase the host (DNS is case-insensitive, so
   `API.example.com` and `api.example.com` are one origin) and rescue
   `URI::InvalidURIError`, re-raising it as `InvalidURLError`.
+- `Pool#build_connection` builds connections through a single `HTTP::Options`
+  (headers+auth, ssl, `persistent: origin`) then `HTTP::Session.new`, applying
+  only `timeout`/`proxy` via the chainable (http.rb translates those). Pool
+  options are **deep-frozen** in `Pool#initialize` so a pool's configuration
+  cannot mutate after creation.
 
 ### 3. Performance
 - `connection_pool` accessor in `ClassMethods` must be memoized in
