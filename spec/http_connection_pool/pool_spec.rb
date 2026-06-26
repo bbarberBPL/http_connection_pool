@@ -52,8 +52,7 @@ RSpec.describe HttpConnectionPool::Pool do
       expect(ciphers).to be_frozen
     end
 
-    it 'raises when a caller tries to mutate a nested option hash" \
-       " after pool creation' do
+    it 'raises when a caller mutates a nested option hash after pool creation' do
       headers = pool.instance_variable_get(:@options)[:headers]
       expect { headers['X'] = '1' }.to raise_error(FrozenError)
     end
