@@ -27,7 +27,10 @@
 
 **Files:**
 - Modify: `lib/http_connection_pool/pool.rb` (replace `build_connection`/`persistent_session`/`ssl_options`/`apply_options` with the new build path)
-- Test: `spec/http_connection_pool/pool_spec.rb` (extend the existing "building real connections (http v6 integration)" describe block)
+- Modify: `spec/support/stubbed_http_client.rb` (move the stub seam to `HTTP::Session.new` — see Step 3a)
+- Modify: `spec/http_connection_pool/pool_spec.rb` (extend the existing "building real connections (http v6 integration)" describe block; update its un-stub — see Step 3b)
+
+**Stub-seam note (critical):** The global fake in `spec/support/stubbed_http_client.rb` currently stubs only `HTTP.persistent`. The new build path calls `HTTP::Session.new(HTTP::Options.new(...))` directly (and `HTTP.persistent` itself routes through `branch` → `HTTP::Session.new`), so `HTTP::Session.new` is the true seam. Without moving the stub, every spec exercising the build path opens a real socket. This is a deliberate, in-scope update to the one central stub — it is NOT per-file re-stubbing.
 
 **Interfaces:**
 - Consumes: `@origin` (String), `@options` (Hash) — already set in `initialize`.
@@ -83,7 +86,7 @@ In `lib/http_connection_pool/pool.rb`, replace the entire private section from `
     def native_options
       opts = { persistent: @origin, headers: headers_with_auth }
       opts[:ssl] = @options[:ssl] if @options[:ssl]
-      # TODO (case C): when ssl_context becomes safely keyable, set
+      # TODO: case C — when ssl_context becomes safely keyable, set
       # opts[:ssl_context] = @options[:ssl_context] here. It is currently
       # rejected at the registry keying boundary, so it never reaches this
       # method. See docs/superpowers/specs/2026-06-25-error-handling-design.md.
@@ -112,6 +115,43 @@ In `lib/http_connection_pool/pool.rb`, replace the entire private section from `
     end
 ```
 
+- [ ] **Step 3a: Move the global stub seam to `HTTP::Session.new`**
+
+In `spec/support/stubbed_http_client.rb`, replace the `before` block so the fake also intercepts `HTTP::Session.new` and answers the chainable methods `apply_chainable` may call. The fake is an `instance_double(HTTP::Session)`; `timeout`/`via`/`headers` must return the fake itself so chaining resolves. Replace the whole shared context body with:
+
+```ruby
+RSpec.shared_context 'with a stubbed HTTP client' do
+  let(:fake_client) { instance_double(HTTP::Session, close: nil) }
+
+  before do
+    # HTTP::Session.new is the true build seam: the gem builds sessions via
+    # HTTP::Session.new(HTTP::Options.new(...)), and HTTP.persistent itself
+    # routes through branch -> HTTP::Session.new. Stub both so no spec opens a
+    # real socket; the chainable methods return the fake so apply_chainable
+    # (timeout/proxy) resolves.
+    allow(HTTP::Session).to receive(:new).and_return(fake_client)
+    allow(HTTP).to receive(:persistent).and_return(fake_client)
+    allow(fake_client).to receive(:is_a?).with(HTTP::Session).and_return(true)
+    allow(fake_client).to receive(:kind_of?).with(HTTP::Session).and_return(true)
+    allow(fake_client).to receive(:timeout).and_return(fake_client)
+    allow(fake_client).to receive(:via).and_return(fake_client)
+    allow(fake_client).to receive(:headers).and_return(fake_client)
+  end
+end
+```
+
+- [ ] **Step 3b: Update the pool_spec real-build un-stub**
+
+In `spec/http_connection_pool/pool_spec.rb`, the `describe 'building real connections (http v6 integration)'` block's `before` currently un-stubs only `HTTP.persistent`. The build path now goes through `HTTP::Session.new`, so un-stub that too. Replace that `before` block with:
+
+```ruby
+    before do
+      # Undo the global stubs so the real http.rb build path runs here.
+      allow(HTTP::Session).to receive(:new).and_call_original
+      allow(HTTP).to receive(:persistent).and_call_original
+    end
+```
+
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `bundle exec rspec spec/http_connection_pool/pool_spec.rb`
@@ -124,20 +164,22 @@ Expected: all examples pass, 0 failures. (The build path is exercised by connect
 
 - [ ] **Step 6: RuboCop**
 
-Run: `bundle exec rubocop lib/http_connection_pool/pool.rb spec/http_connection_pool/pool_spec.rb`
-Expected: no offenses. If `Metrics/AbcSize`/`MethodLength` flags anything, the methods above are small by design — extract a helper rather than disabling.
+Run: `bundle exec rubocop lib/http_connection_pool/pool.rb spec/http_connection_pool/pool_spec.rb spec/support/stubbed_http_client.rb`
+Expected: no offenses. If `Metrics/AbcSize`/`MethodLength` flags anything, the methods above are small by design — extract a helper rather than disabling. (The `# TODO:` comment form is `Style/CommentAnnotation`-compliant; do not revert it to `# TODO (...)`.)
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add lib/http_connection_pool/pool.rb spec/http_connection_pool/pool_spec.rb
+git add lib/http_connection_pool/pool.rb spec/http_connection_pool/pool_spec.rb spec/support/stubbed_http_client.rb
 git commit -m "$(cat <<'EOF'
 Build connections via a single HTTP::Options instead of chaining
 
 persistent is set as an Options field; headers/auth/ssl go through
 HTTP::Options.new; only timeout/proxy stay on the chainable (http.rb translates
 them), with an early return when neither is set. ssl_context is omitted with a
-case-C TODO and remains rejected at the registry keying boundary.
+case-C TODO and remains rejected at the registry keying boundary. The shared
+test stub now intercepts HTTP::Session.new (the true build seam) so specs stay
+socket-free.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 EOF
