@@ -148,8 +148,9 @@ translation:
 | `:proxy`      | `HTTP::Session#via` (chainable)            | `{ proxy: ['proxy.example.com', 8080] }`      |
 | `:ssl_context`| not supported — raises `OptionKeyError`    | use `:ssl` instead                            |
 
-Request paths are resolved against `base_url`'s origin, so pass relative paths
-(`conn.get('/users/1')`) — they target the pool's `scheme://host:port`.
+Request paths are resolved against the pool's origin, so pass relative paths
+(`conn.get('/users/1')`) — they target the pool's `scheme://host:port` (the
+origin of `base_url` when using the `Connectable` mixin).
 
 > **Note (http.rb v6):** `:ssl_context` is not supported. An `OpenSSL::SSL::SSLContext`
 > cannot be safely used as a pool key — two contexts that differ only in a
