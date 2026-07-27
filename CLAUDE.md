@@ -255,8 +255,9 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
 - `.github/workflows/release.yml` triggers on a `v*.*.*` tag: it verifies the
   tag matches `HttpConnectionPool::VERSION`, re-runs the specs, verifies the
   committed checksums against a fresh build, then publishes via
-  `rubygems/release-gem` over OIDC Trusted Publishing. No RubyGems API key is
-  stored; `id-token: write` mints a short-lived token per release.
+  `rubygems/release-gem` over OIDC Trusted Publishing and creates a GitHub
+  Release for the tag. No RubyGems API key is stored; `id-token: write` mints
+  a short-lived token per release.
 - **The release is still user-initiated:** a human runs `rake bump:*`, commits,
   and pushes the tag. The assistant authors these workflows but never runs
   `gem push` or `git push`. Pushing the tag is what a maintainer does.

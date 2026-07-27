@@ -501,7 +501,8 @@ git push && git push --tags   # the tag push triggers the release workflow
 Use `bump:minor` or `bump:major` for those components. On the `v*.*.*` tag,
 `.github/workflows/release.yml` verifies the tag matches
 `HttpConnectionPool::VERSION`, re-runs the specs, verifies the committed
-checksums match a fresh build, and publishes via `rubygems/release-gem`.
+checksums match a fresh build, publishes via `rubygems/release-gem`, and
+creates a GitHub Release for the tag.
 
 **One-time setup (maintainer, on rubygems.org):** register this repository as a
 Trusted Publisher before the first release. On rubygems.org, add a GitHub
