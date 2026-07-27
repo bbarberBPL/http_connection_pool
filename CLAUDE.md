@@ -221,6 +221,9 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
 | `rake bundle:audit:check` | Offline CVE scan                                  |
 | `rake build`          | Build the gem into `pkg/` (gitignored)                 |
 | `rake build:checksum` | Build, then write SHA-256 + SHA-512 to `checksums/`    |
+| `rake bump:patch`     | Bump patch version in version.rb, regenerate checksums |
+| `rake bump:minor`     | Bump minor version in version.rb, regenerate checksums |
+| `rake bump:major`     | Bump major version in version.rb, regenerate checksums |
 
 `rake ci` must always run clean before a PR. Never bypass bundler-audit.
 
@@ -242,6 +245,26 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
   `version.rb` changes, before the user publishes.
 - The built `.gem` itself is never committed (`*.gem` is gitignored); only its
   checksums are.
+
+### Continuous integration
+
+- `.github/workflows/ci.yml` runs on push to `main` and on PRs: a `test` matrix
+  over MRI Ruby `3.3` and `3.4` running `rake ci`, plus a separate `security`
+  job running `rake audit` (network advisory-DB refresh + check). MRI only — no
+  JRuby/TruffleRuby matrix (the `max_pools` soft-cap spec is GVL-dependent).
+- `.github/workflows/release.yml` triggers on a `v*.*.*` tag: it verifies the
+  tag matches `HttpConnectionPool::VERSION`, re-runs the specs, verifies the
+  committed checksums against a fresh build, then publishes via
+  `rubygems/release-gem` over OIDC Trusted Publishing and creates a GitHub
+  Release for the tag. No RubyGems API key is stored; `id-token: write` mints
+  a short-lived token per release.
+- **The release is still user-initiated:** a human runs `rake bump:*`, commits,
+  and pushes the tag. The assistant authors these workflows but never runs
+  `gem push` or `git push`. Pushing the tag is what a maintainer does.
+- Gemspec carries `rubygems_mfa_required = 'true'`; interactive privileged
+  operations need the maintainer's authenticator app, while OIDC publishing is
+  accepted as MFA-compliant. Gemspec also sets `homepage`, `metadata['homepage_uri']`,
+  and `metadata['source_code_uri']`.
 
 ---
 

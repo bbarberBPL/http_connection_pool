@@ -6,6 +6,13 @@ plugins:
 AllCops:
   NewCops: enable
   TargetRubyVersion: 3.3
+  # merge (not replace) RuboCop's default Exclude so vendor/**/* stays excluded.
+  # CI installs gems into vendor/bundle inside the checkout (bundler-cache);
+  # without the default excludes RuboCop descends into vendored gems and tries
+  # to load their plugins (e.g. rbs ships a config demanding rubocop-rubycw).
+  inherit_mode:
+    merge:
+      - Exclude
   Exclude:
     - "*.gemspec"
 
@@ -43,3 +50,4 @@ RSpec/DescribeClass:
     - "spec/http_connection_pool/thread_safety_spec.rb"
     - "spec/http_connection_pool/fiber_spec.rb"
     - "spec/http_connection_pool/errors_spec.rb"
+    - "spec/gemspec_spec.rb"

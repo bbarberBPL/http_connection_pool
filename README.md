@@ -1,5 +1,7 @@
 # HttpConnectionPool
 
+[![CI](https://github.com/bbarberBPL/http_connection_pool/actions/workflows/ci.yml/badge.svg)](https://github.com/bbarberBPL/http_connection_pool/actions/workflows/ci.yml)
+
 Thread-safe (and Fiber-scheduler-aware) persistent HTTP connection pooling for
 the [http.rb](https://github.com/httprb/http) gem.
 
@@ -481,9 +483,39 @@ bundle exec rake build:checksum   # build, then write SHA-256 + SHA-512 to check
 against this repository. The built `.gem` is never committed; only its
 checksums are.
 
-Publishing to RubyGems is a manual, maintainer-only step — this project
-deliberately ships no automated push task. Regenerate the checksums whenever
-the version changes, immediately before publishing.
+#### Releasing
+
+Releases are cut by bumping the version locally and pushing a matching tag; a
+GitHub Actions workflow then tests and publishes to RubyGems over OIDC (no API
+key is stored anywhere). The maintainer pushes the tag — the workflow runs the
+`gem push`.
+
+```bash
+bundle exec rake bump:patch   # 0.1.0 -> 0.1.1; rewrites version.rb + checksums/
+git add lib/http_connection_pool/version.rb checksums/
+git commit -m 'Release v0.1.1'
+git tag v0.1.1
+git push && git push --tags   # the tag push triggers the release workflow
+```
+
+Use `bump:minor` or `bump:major` for those components. On the `v*.*.*` tag,
+`.github/workflows/release.yml` verifies the tag matches
+`HttpConnectionPool::VERSION`, re-runs the specs, verifies the committed
+checksums match a fresh build, publishes via `rubygems/release-gem`, and
+creates a GitHub Release for the tag.
+
+**One-time setup (maintainer, on rubygems.org):** register this repository as a
+Trusted Publisher before the first release. On rubygems.org, add a GitHub
+Actions trusted publisher for repository `bbarberBPL/http_connection_pool` and
+workflow `release.yml` (for the not-yet-published gem, add it as a *pending*
+trusted publisher under your profile's OIDC settings; afterwards it lives on the
+gem's *Trusted Publishers* page). Until this exists, the publish step fails.
+
+The gem sets `rubygems_mfa_required`, so all privileged interactive operations
+(yank, ownership, manual pushes, API-key management) require your authenticator
+app. OIDC Trusted Publishing satisfies this MFA requirement for automated
+releases — the verified GitHub Actions identity is the second factor — so no
+one-time-password prompt appears in CI.
 
 ## License
 
