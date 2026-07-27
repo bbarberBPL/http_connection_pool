@@ -4,6 +4,7 @@ require 'rspec/core/rake_task'
 require 'rubocop/rake_task'
 require 'bundler/audit/task'
 require 'bundler/gem_tasks'
+require_relative 'tasks/version_bumper'
 
 RSpec::Core::RakeTask.new(:spec)
 RuboCop::RakeTask.new(:rubocop)
@@ -48,6 +49,37 @@ namespace :build do
     redundant = File.join('checksums', "#{File.basename(gem_path)}.sha512")
     rm_f redundant
   end
+end
+
+VERSION_FILE = 'lib/http_connection_pool/version.rb'
+
+namespace :bump do
+  VersionBumper::LEVELS.each do |level|
+    desc "Bump the #{level} version, regenerate checksums, and print the release commands"
+    task(level) { bump_version(level) }
+  end
+end
+
+def bump_version(level)
+  contents = File.read(VERSION_FILE)
+  current  = contents[/VERSION = '([^']+)'/, 1]
+  raise "could not find VERSION in #{VERSION_FILE}" unless current
+
+  bumped = VersionBumper.next(current, level)
+  File.write(VERSION_FILE, contents.sub(/VERSION = '[^']+'/, "VERSION = '#{bumped}'"))
+  puts "Bumped #{current} -> #{bumped}"
+
+  # Run in a subprocess so the freshly written version.rb is loaded (this
+  # process already required the old constant, which is frozen for its lifetime).
+  sh 'bundle exec rake build:checksum'
+
+  puts <<~NEXT
+    Next steps (run these yourself):
+      git add #{VERSION_FILE} checksums/
+      git commit -m 'Release v#{bumped}'
+      git tag v#{bumped}
+      git push && git push --tags
+  NEXT
 end
 
 def write_checksum(gem_path, digest_class, extension)
