@@ -11,6 +11,10 @@ Gem::Specification.new do |spec|
   spec.description = 'Provides a singleton connection pool per URL origin using http.rb (httprb), ' \
                      'with a Connectable mixin for easy integration into service/API client classes.'
   spec.license     = 'MIT'
+  spec.homepage = 'https://rubygems.org/gems/http_connection_pool'
+  spec.metadata['homepage_uri']    = spec.homepage
+  spec.metadata['source_code_uri'] = 'https://github.com/bbarberBPL/http_connection_pool'
+  spec.metadata['rubygems_mfa_required'] = 'true'
 
   spec.required_ruby_version = '>= 3.3.0'
 
