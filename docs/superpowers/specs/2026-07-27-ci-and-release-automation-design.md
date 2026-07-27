@@ -172,8 +172,13 @@ jobs:
             exit 1
           fi
 
+      # Re-run the specs (not RuboCop) before publishing. A tag push does not
+      # trigger ci.yml, and dependencies resolve fresh (lockfile is
+      # gitignored), so this guards against a broken artifact under a
+      # newer in-range dependency the last main CI run never saw. RuboCop is
+      # omitted: style was already enforced on main and has no bearing on the
+      # packaged gem, and a yanked version number can never be reused.
       - run: bundle exec rake spec
-      - run: bundle exec rake rubocop
 
       # Rebuild checksums and fail if they differ from the committed ones,
       # so the published artifact matches what the repo attests.
