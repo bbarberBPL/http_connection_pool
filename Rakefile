@@ -1,5 +1,15 @@
 # frozen_string_literal: true
 
+# Pin the gem build's embedded `date:` so the artifact is byte-reproducible
+# across machines and days. RubyGems derives the metadata date from
+# SOURCE_DATE_EPOCH; without a fixed value it drifts with the wall clock, so a
+# rebuild on a different day yields a different digest and the release
+# workflow's checksum gate (fresh build vs committed checksums) fails every
+# time. The committed checksums are pinned to this exact epoch, so we force it
+# unconditionally — an ambient SOURCE_DATE_EPOCH would otherwise silently
+# invalidate them. 315619200 is 1980-01-02 UTC, RubyGems' own epoch floor.
+ENV['SOURCE_DATE_EPOCH'] = '315619200'
+
 require 'rspec/core/rake_task'
 require 'rubocop/rake_task'
 require 'bundler/audit/task'

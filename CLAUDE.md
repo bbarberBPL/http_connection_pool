@@ -245,6 +245,14 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
   `version.rb` changes, before the user publishes.
 - The built `.gem` itself is never committed (`*.gem` is gitignored); only its
   checksums are.
+- **The build is byte-reproducible.** The `Rakefile` forces
+  `SOURCE_DATE_EPOCH = '315619200'` (1980-01-02 UTC), and `release.yml` sets the
+  same value at the job level so both the checksum gate and `rubygems/release-gem`
+  build identical bytes. Without this, RubyGems stamps the gem's `date:` from the
+  wall clock, so a rebuild on a different day gets a different digest and the
+  release workflow's checksum gate fails every time. The committed checksums are
+  pinned to this exact epoch — never change or unset it without regenerating all
+  committed checksums.
 
 ### Continuous integration
 

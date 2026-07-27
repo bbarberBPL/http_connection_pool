@@ -10,6 +10,14 @@ jobs:
     permissions:
       contents: write   # create the GitHub Release
       id-token: write   # OIDC token for RubyGems Trusted Publishing
+    env:
+      # Pin the gem's embedded build date so every step here builds a
+      # byte-identical artifact: the checksum gate below AND rubygems/release-gem
+      # (which builds+pushes in its own process, so the Rakefile's in-process
+      # pin does not reach it). Without this, release-gem could publish a gem
+      # with a wall-clock date that differs from the one just attested.
+      # Value matches the committed checksums (see Rakefile).
+      SOURCE_DATE_EPOCH: '315619200'
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
