@@ -8,16 +8,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # create the GitHub Release
+      contents: write   # create the GitHub Release and attach assets
       id-token: write   # OIDC token for RubyGems Trusted Publishing
-    env:
-      # Pin the gem's embedded build date so every step here builds a
-      # byte-identical artifact: the checksum gate below AND rubygems/release-gem
-      # (which builds+pushes in its own process, so the Rakefile's in-process
-      # pin does not reach it). Without this, release-gem could publish a gem
-      # with a wall-clock date that differs from the one just attested.
-      # Value matches the committed checksums (see Rakefile).
-      SOURCE_DATE_EPOCH: '315619200'
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -42,12 +34,24 @@ jobs:
       # number can never be reused, so publishing red is uniquely costly.
       - run: bundle exec rake spec
 
-      # Rebuild the checksums and fail if they differ from the committed ones,
-      # so the published artifact matches what the repo attests.
-      - name: Verify committed checksums
-        run: |
-          bundle exec rake build:checksum
-          git diff --exit-code checksums/
-          test -z "$(git ls-files --others --exclude-standard checksums/)"
-
+      # Builds via `rake release` and pushes over OIDC. It leaves the exact
+      # published .gem in pkg/, which the steps below checksum and attach.
       - uses: rubygems/release-gem@v1
+
+      # Record digests of the artifact that was actually published (pkg/*.gem
+      # from the step above). .gem builds are not byte-stable across
+      # zlib/RubyGems versions, so the published gem is the source of truth
+      # rather than a repo-committed checksum compared against a fresh build.
+      - name: Checksum the published gem
+        run: bundle exec rake build:checksum
+
+      - name: Create GitHub Release with gem and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            pkg/http_connection_pool-*.gem \
+            checksums/http_connection_pool-*.sha256 \
+            checksums/http_connection_pool-*.sha512

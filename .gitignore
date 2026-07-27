@@ -3,6 +3,7 @@
 /.superpowers/
 /.claude/
 /pkg/
+/checksums/
 *.gem
 *.key
 .env

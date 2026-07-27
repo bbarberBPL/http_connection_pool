@@ -479,9 +479,10 @@ bundle exec rake build:checksum   # build, then write SHA-256 + SHA-512 to check
 ```
 
 `rake build:checksum` records both digests under `checksums/` in the standard
-`sha256sum -c` / `sha512sum -c` format, so a published artifact can be verified
-against this repository. The built `.gem` is never committed; only its
-checksums are.
+`sha256sum -c` / `sha512sum -c` format. Neither the built `.gem` nor its
+checksums are committed (both directories are gitignored); the release workflow
+runs `build:checksum` against the exact gem it just published and attaches the
+digests to the GitHub Release, so the published artifact is what gets verified.
 
 #### Releasing
 
@@ -491,8 +492,8 @@ key is stored anywhere). The maintainer pushes the tag — the workflow runs the
 `gem push`.
 
 ```bash
-bundle exec rake bump:patch   # 0.1.0 -> 0.1.1; rewrites version.rb + checksums/
-git add lib/http_connection_pool/version.rb checksums/
+bundle exec rake bump:patch   # 0.1.0 -> 0.1.1; rewrites version.rb
+git add lib/http_connection_pool/version.rb
 git commit -m 'Release v0.1.1'
 git tag v0.1.1
 git push && git push --tags   # the tag push triggers the release workflow
@@ -500,9 +501,10 @@ git push && git push --tags   # the tag push triggers the release workflow
 
 Use `bump:minor` or `bump:major` for those components. On the `v*.*.*` tag,
 `.github/workflows/release.yml` verifies the tag matches
-`HttpConnectionPool::VERSION`, re-runs the specs, verifies the committed
-checksums match a fresh build, publishes via `rubygems/release-gem`, and
-creates a GitHub Release for the tag.
+`HttpConnectionPool::VERSION`, re-runs the specs, publishes via
+`rubygems/release-gem` (which builds and `gem push`es over OIDC), then records
+SHA-256/SHA-512 digests of the published gem and creates a GitHub Release with
+the gem and checksum files attached.
 
 **One-time setup (maintainer, on rubygems.org):** register this repository as a
 Trusted Publisher before the first release. On rubygems.org, add a GitHub

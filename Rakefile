@@ -1,15 +1,5 @@
 # frozen_string_literal: true
 
-# Pin the gem build's embedded `date:` so the artifact is byte-reproducible
-# across machines and days. RubyGems derives the metadata date from
-# SOURCE_DATE_EPOCH; without a fixed value it drifts with the wall clock, so a
-# rebuild on a different day yields a different digest and the release
-# workflow's checksum gate (fresh build vs committed checksums) fails every
-# time. The committed checksums are pinned to this exact epoch, so we force it
-# unconditionally — an ambient SOURCE_DATE_EPOCH would otherwise silently
-# invalidate them. 315619200 is 1980-01-02 UTC, RubyGems' own epoch floor.
-ENV['SOURCE_DATE_EPOCH'] = '315619200'
-
 require 'rspec/core/rake_task'
 require 'rubocop/rake_task'
 require 'bundler/audit/task'
@@ -36,10 +26,12 @@ task ci: ['bundle:audit:check', :rubocop, :spec]
 task default: :ci
 
 # `bundler/gem_tasks` provides `build` (into pkg/). We extend it to record
-# SHA-256 and SHA-512 digests of the built .gem so a published artifact can be
-# verified against the repo. The .gem itself stays gitignored; only the
-# checksum files (under checksums/) are committed. Publishing remains a manual,
-# user-only step — there is deliberately no automated push task here.
+# SHA-256 and SHA-512 digests of the built .gem in the standard
+# `sha256sum -c` / `sha512sum -c` format. These describe THIS build's artifact;
+# the release workflow runs this against the exact gem it just published and
+# attaches the digests to the GitHub Release. .gem builds are not byte-stable
+# across zlib/RubyGems versions, so checksums are recorded per published
+# artifact rather than committed to the repo and byte-compared in CI.
 namespace :build do
   desc 'Build the gem, then write SHA-256 and SHA-512 checksums to checksums/'
   task :checksum do
@@ -65,7 +57,7 @@ VERSION_FILE = 'lib/http_connection_pool/version.rb'
 
 namespace :bump do
   VersionBumper::LEVELS.each do |level|
-    desc "Bump the #{level} version, regenerate checksums, and print the release commands"
+    desc "Bump the #{level} version and print the release commands"
     task(level) { bump_version(level) }
   end
 end
@@ -79,13 +71,9 @@ def bump_version(level)
   File.write(VERSION_FILE, contents.sub(/VERSION = '[^']+'/, "VERSION = '#{bumped}'"))
   puts "Bumped #{current} -> #{bumped}"
 
-  # Run in a subprocess so the freshly written version.rb is loaded (this
-  # process already required the old constant, which is frozen for its lifetime).
-  sh 'bundle exec rake build:checksum'
-
   puts <<~NEXT
     Next steps (run these yourself):
-      git add #{VERSION_FILE} checksums/
+      git add #{VERSION_FILE}
       git commit -m 'Release v#{bumped}'
       git tag v#{bumped}
       git push && git push --tags

@@ -220,10 +220,10 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
 | `rake rubocop`        | RuboCop only                                           |
 | `rake bundle:audit:check` | Offline CVE scan                                  |
 | `rake build`          | Build the gem into `pkg/` (gitignored)                 |
-| `rake build:checksum` | Build, then write SHA-256 + SHA-512 to `checksums/`    |
-| `rake bump:patch`     | Bump patch version in version.rb, regenerate checksums |
-| `rake bump:minor`     | Bump minor version in version.rb, regenerate checksums |
-| `rake bump:major`     | Bump major version in version.rb, regenerate checksums |
+| `rake build:checksum` | Build, then write SHA-256 + SHA-512 to `checksums/` (gitignored) |
+| `rake bump:patch`     | Bump patch version in version.rb, print release commands |
+| `rake bump:minor`     | Bump minor version in version.rb, print release commands |
+| `rake bump:major`     | Bump major version in version.rb, print release commands |
 
 `rake ci` must always run clean before a PR. Never bypass bundler-audit.
 
@@ -237,22 +237,17 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
   `git push` deny rule in `.claude/settings.local.json`; releasing a gem is
   outward-facing and irreversible (a yanked version's number can never be
   reused), so it always belongs to the user.
-- **Record a checksum for every build.** `rake build:checksum` writes
-  `checksums/http_connection_pool-<version>.sha256` and `.sha512` next to the
-  build. These files are committed (the `checksums/` directory is tracked even
-  though `pkg/` and `*.gem` are gitignored) so a published gem's integrity can
-  be verified against the repo after the fact. Regenerate them whenever
-  `version.rb` changes, before the user publishes.
-- The built `.gem` itself is never committed (`*.gem` is gitignored); only its
-  checksums are.
-- **The build is byte-reproducible.** The `Rakefile` forces
-  `SOURCE_DATE_EPOCH = '315619200'` (1980-01-02 UTC), and `release.yml` sets the
-  same value at the job level so both the checksum gate and `rubygems/release-gem`
-  build identical bytes. Without this, RubyGems stamps the gem's `date:` from the
-  wall clock, so a rebuild on a different day gets a different digest and the
-  release workflow's checksum gate fails every time. The committed checksums are
-  pinned to this exact epoch — never change or unset it without regenerating all
-  committed checksums.
+- **Checksums describe the published artifact, not the repo.** `rake
+  build:checksum` writes `checksums/http_connection_pool-<version>.sha256` and
+  `.sha512` in `sha256sum -c` format. Neither the `.gem` nor its checksums are
+  committed (`/pkg/`, `/checksums/`, and `*.gem` are all gitignored). The
+  release workflow runs `build:checksum` against the exact gem
+  `rubygems/release-gem` just published and attaches the digests to the GitHub
+  Release. **Do not** reintroduce a "commit checksums, then byte-compare a
+  fresh CI build against them" gate: `.gem` builds are not byte-stable across
+  zlib/RubyGems versions (DEFLATE output differs even with `SOURCE_DATE_EPOCH`
+  pinned), so such a gate fails on essentially every release. The published gem
+  is the source of truth.
 
 ### Continuous integration
 
@@ -261,11 +256,13 @@ regardless (verified by `spec/integration/zeitwerk_compliance_spec.rb`).
   job running `rake audit` (network advisory-DB refresh + check). MRI only — no
   JRuby/TruffleRuby matrix (the `max_pools` soft-cap spec is GVL-dependent).
 - `.github/workflows/release.yml` triggers on a `v*.*.*` tag: it verifies the
-  tag matches `HttpConnectionPool::VERSION`, re-runs the specs, verifies the
-  committed checksums against a fresh build, then publishes via
-  `rubygems/release-gem` over OIDC Trusted Publishing and creates a GitHub
-  Release for the tag. No RubyGems API key is stored; `id-token: write` mints
-  a short-lived token per release.
+  tag matches `HttpConnectionPool::VERSION`, re-runs the specs, publishes via
+  `rubygems/release-gem` (which runs `rake release` — builds and `gem push`es —
+  over OIDC Trusted Publishing), then checksums the published gem and creates a
+  GitHub Release with the gem and checksum files attached. No RubyGems API key
+  is stored; `id-token: write` mints a short-lived token per release. Bundler's
+  `already_tagged?` makes `rake release` skip re-tagging, so the tag that
+  triggered the run does not conflict.
 - **The release is still user-initiated:** a human runs `rake bump:*`, commits,
   and pushes the tag. The assistant authors these workflows but never runs
   `gem push` or `git push`. Pushing the tag is what a maintainer does.
