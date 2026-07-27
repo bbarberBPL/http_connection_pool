@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub Release
+      id-token: write   # OIDC token for RubyGems Trusted Publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Verify tag matches gem version
+        run: |
+          gem_version="$(ruby -Ilib -r http_connection_pool/version \
+            -e 'print HttpConnectionPool::VERSION')"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$gem_version" != "$tag_version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match VERSION $gem_version" >&2
+            exit 1
+          fi
+
+      # Re-run the specs (not RuboCop) before publishing. A tag push does not
+      # trigger ci.yml, and dependencies resolve fresh (Gemfile.lock is
+      # gitignored), so this guards against a broken artifact under a newer
+      # in-range dependency the last main CI run never saw. A yanked version
+      # number can never be reused, so publishing red is uniquely costly.
+      - run: bundle exec rake spec
+
+      # Rebuild the checksums and fail if they differ from the committed ones,
+      # so the published artifact matches what the repo attests.
+      - name: Verify committed checksums
+        run: |
+          bundle exec rake build:checksum
+          git diff --exit-code checksums/
+
+      - uses: rubygems/release-gem@v1
